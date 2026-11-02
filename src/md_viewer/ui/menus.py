@@ -22,6 +22,7 @@ ACCELS: dict[str, list[str]] = {
     "win.zoom-in": ["<Control>plus", "<Control>equal", "<Control>KP_Add"],
     "win.zoom-out": ["<Control>minus", "<Control>KP_Subtract"],
     "win.zoom-reset": ["<Control>0", "<Control>KP_0"],
+    "win.toc": ["F9"],
     "win.back": ["<Alt>Left"],
     "win.forward": ["<Alt>Right"],
 }
@@ -126,6 +127,12 @@ def build_menu_model(recent_menu: Gio.Menu, flavor_menu: Gio.Menu, style_menu: G
     menu.append_submenu("_Edit", edit_menu)
 
     view_menu = Gio.Menu()
+    panes = Gio.Menu()
+    for label, action in (("Show Table of _Contents", "win.toc-show"), ("Hide Table of _Contents", "win.toc-hide")):
+        item = _item(label, action, "F9")
+        item.set_attribute_value("hidden-when", GLib.Variant.new_string("action-disabled"))
+        panes.append_item(item)
+    view_menu.append_section(None, panes)
     rendering = Gio.Menu()
     rendering.append_submenu("_Flavor", flavor_menu)
     rendering.append_submenu("_Style", style_menu)

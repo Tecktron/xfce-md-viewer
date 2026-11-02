@@ -13,5 +13,12 @@ xfce-md-viewer (0.1.0-1) noble; urgency=low
   * View → Flavor / Style per window; Preferences for default flavor, default
     style and opt-in remote images; custom CSS styles picked up live from
     ~/.local/share/md-viewer/styles.
+  * Math (KaTeX 0.19.1) and Mermaid 12.2.0 diagrams, rendered by the viewer's
+    own scripts in an isolated script world; documents still cannot run
+    scripts. GitHub-style $math$, $$display$$ and ```math in GFM; pandoc math
+    in pandoc flavors.
+  * Table of contents sidebar (View → Show/Hide Table of Contents, F9).
+  * tools/update_vendored.py and a weekly workflow keep the GitHub styles,
+    KaTeX and Mermaid up to date via pull requests.
 
  -- Tecktron Studios <software@tecktron.net>  Mon, 02 Nov 2026 00:00:00 +0000

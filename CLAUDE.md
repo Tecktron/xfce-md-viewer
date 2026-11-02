@@ -122,17 +122,27 @@ src/md_viewer/
   ui/window.py    ViewerWindow (Gtk.ApplicationWindow): PopoverMenuBar, Gtk.SearchBar,
                   WebKit.WebView. See "Viewer window" below.
 data/styles/      built-in styles. github.css / github-light.css / github-dark.css are
-                  GENERATED from npm github-markdown-css by tools/update_github_css.py —
-                  never hand-edit; change the script (header/LAYOUT_CSS) and re-run.
+                  GENERATED from npm github-markdown-css by tools/update_vendored.py —
+                  never hand-edit; change the script (header/GITHUB_LAYOUT_CSS) and re-run.
                   plain.css is ours.
-tools/update_github_css.py
-                  stdlib-only; verifies npm sha512 integrity; --check exits 1 when outdated.
+data/vendor/      katex/ (js, css, woff2 fonts) and mermaid/ (mermaid.min.js), each with
+                  LICENSE and VERSION — vendored by tools/update_vendored.py; never hand-edit.
+data/js/enhance.js
+                  OUR page script (mdViewer.enhance / scrollToId), runs in SCRIPT_WORLD.
+src/md_viewer/postprocess.py
+                  postprocess(body) → Processed: normalises pandoc mermaid and ```math,
+                  adds unique GitHub-style heading ids (keeps existing), collects
+                  headings for the TOC, flags has_math / has_mermaid.
+tools/update_vendored.py
+                  stdlib-only; packages github-markdown-css, katex, mermaid; verifies npm
+                  sha512 integrity; reads only named tar members; --check [PKG] exits 1
+                  when outdated; `update_vendored.py PKG VERSION` pins a version.
 ```
 
 ## Vendored assets
 
-`.github/workflows/update-vendored.yml` runs weekly, regenerates vendored files
-when upstream has a new release and opens a PR. Needs the repo setting
+`.github/workflows/update-vendored.yml` runs weekly as a matrix over the three
+packages; each with a new release gets its own PR (branch `vendored/PKG-VERSION`). Needs the repo setting
 "Allow GitHub Actions to create and approve pull requests". License for vendored
 files is recorded in `debian/copyright`.
 
@@ -191,7 +201,33 @@ prevention, so don't rely on xdotool keys/clicks.
 - Remote images: `document.content_security_policy(allow_remote_images)`; scripts
   are blocked in both policies.
 
+## Math, diagrams and table of contents
+
+- `document.render_document()` returns `Rendered(page, headings, has_math, has_mermaid)`.
+  KaTeX CSS is inlined only when `has_math`, with font URLs rewritten to the bundled
+  `file://` fonts; the CSP allows `font-src file:` (still no script-src).
+- GFM math: `dollarmath_plugin(allow_space=False, allow_digits=False)` — GitHub-like,
+  "$5 or $10" stays text. `double_inline` is OFF (it emits <div> inside <p>).
+  Pandoc runs with `--katex`. CommonMark/original/Extra have no math (per spec).
+- Window: `_install_page_scripts()` before each load_html (enhance.js always;
+  KaTeX/Mermaid only when needed; UserScript objects cached per process via
+  `_user_script`). On load FINISHED, `mdViewer.enhance({scheme})` runs via
+  `call_async_javascript_function` in SCRIPT_WORLD; scroll restore and find
+  re-run happen in `_after_page_ready()` AFTER enhancement (diagrams change height).
+- TOC: Gtk.Paned (start = ListBox "navigation-sidebar", end = WebView). The View
+  menu shows "Show Table of Contents" OR "Hide Table of Contents" (win.toc-show /
+  win.toc-hide, hidden-when=action-disabled; each window enables only the matching
+  one — no checkbox, Craig found it crowded). F9 = win.toc toggle. Persisted as
+  `show-toc`. Row click → `mdViewer.scrollToId`.
+- The search bar is hidden (not just collapsed) when closed: Greybird draws its
+  padding/border even with the revealer shut (7 px band under the menu bar).
+
 ## Planned (agreed, not yet built)
+
+- **More built-in stylesheets** (future milestone): Craig referenced a list agreed
+  in a separate "site chat" — get the exact list from him. Candidates mentioned
+  here: academic, sepia, and upstream github-markdown-css dimmed / high-contrast /
+  colorblind variants (one-line additions to GITHUB_VARIANTS).
 
 - **Milestone 6 — Help menu:** Keyboard Shortcuts window and "Report a Problem"
   (GitHub issues) above a separator, then About at the bottom. Fixes the current

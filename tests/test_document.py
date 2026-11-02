@@ -38,9 +38,31 @@ def test_scheme_selects_highlight_css():
 
 
 def test_render_document_end_to_end():
-    page = render_document("# Hi\n\n```python\nx = 1\n```\n", "gfm", "", "t")
-    assert "Hi</h1>" in page
-    assert 'class="highlight"' in page
+    rendered = render_document("# Hi\n\n```python\nx = 1\n```\n", "gfm", "", "t")
+    assert "Hi</h1>" in rendered.page
+    assert 'class="highlight"' in rendered.page
+    assert [h.id for h in rendered.headings] == ["hi"]
+    assert not rendered.has_math
+    assert not rendered.has_mermaid
+
+
+def test_katex_css_only_when_math():
+    plain = render_document("no math", "gfm", "", "t")
+    math = render_document("Euler $e^{i\\pi}+1=0$", "gfm", "", "t")
+    assert ".katex" not in plain.page
+    assert math.has_math
+    assert ".katex" in math.page
+    assert "url(file://" in math.page  # fonts resolved to the bundled copies
+    assert "url(fonts/" not in math.page
+
+
+def test_csp_allows_local_fonts_only():
+    assert "font-src file:;" in CONTENT_SECURITY_POLICY
+    assert "font-src file:;" in REMOTE_IMAGES_POLICY
+
+
+def test_mermaid_flag():
+    assert render_document("```mermaid\ngraph TD; A-->B\n```\n", "gfm", "", "t").has_mermaid
 
 
 def test_remote_images_opt_in():

@@ -11,7 +11,17 @@ Files: data/styles/github.css data/styles/github-light.css data/styles/github-da
 Copyright: Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
            2026 Tecktron Studios <software@tecktron.net> (generated header and layout section)
 License: Expat
-Comment: Generated from the github-markdown-css npm package by tools/update_github_css.py.
+Comment: Generated from the github-markdown-css npm package by tools/update_vendored.py.
+
+Files: data/vendor/katex/*
+Copyright: 2013-2020 Khan Academy and other contributors
+License: Expat
+Comment: KaTeX, vendored from npm by tools/update_vendored.py (woff2 fonts only).
+
+Files: data/vendor/mermaid/*
+Copyright: 2014-2022 Knut Sveidqvist and contributors
+License: Expat
+Comment: Mermaid, vendored from npm by tools/update_vendored.py.
 
 Files: debian/*
 Copyright: 2026 Tecktron Studios <software@tecktron.net>

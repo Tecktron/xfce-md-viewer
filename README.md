@@ -17,6 +17,7 @@ A lightweight GTK4 Markdown **viewer** (not an editor) for the Xfce desktop.
   defaults in **Edit → Preferences**
 - Auto-reload when the file changes on disk
 - Syntax-highlighted code blocks, math (KaTeX) and Mermaid diagrams
+- Table of contents sidebar (View → Show Table of Contents, or F9)
 - Find, zoom, print / export to PDF
 - Opens `.md` files from Thunar and other file managers
 
@@ -79,6 +80,17 @@ code-highlighting colours. Rendered Markdown sits inside
 `<pre class="highlight"><code class="language-…">`. A user style with the same
 file name as a built-in one replaces it.
 
+### Math and diagrams
+
+In GitHub Flavored Markdown, write inline math as `$x^2$` (no space inside the
+dollars, so prices like "$5 or $10" stay text) and display math as `$$ … $$` on
+its own lines or in a ` ```math ` block. Pandoc flavors use pandoc's math
+syntax. CommonMark, original Markdown and Markdown Extra have no math syntax.
+
+` ```mermaid ` blocks become diagrams. A diagram with an error stays visible as
+source text. Math and diagrams are rendered by the viewer itself with bundled
+copies of KaTeX and Mermaid, and work offline.
+
 ### Remote content
 
 Documents can't run scripts or reach the network. To show images hosted on
@@ -103,6 +115,7 @@ Or right-click a `.md` file in Thunar → **Open With → Markdown Viewer**.
 | F3 / Shift+F3 | Next / previous match |
 | Ctrl+= / Ctrl+− / Ctrl+0 | Zoom in / out / reset (or Ctrl+mouse wheel) |
 | Alt+← / Alt+→ | Back / forward |
+| F9 | Table of contents |
 | Ctrl+W | Close window |
 | Ctrl+Q | Close all windows |
 
@@ -157,6 +170,7 @@ src/md_viewer/
   main.py              MdViewerApplication — single instance, opens files, recent menu
   flavors.py           Markdown flavors and their parser backends
   highlight.py         pygments syntax highlighting for code blocks
+  postprocess.py       heading ids, table of contents, math/diagram detection
   styles.py            CSS style discovery (built-in + user)
   document.py          assembles the final HTML page
   links.py             what a clicked link does (open here / externally / block)
@@ -168,7 +182,9 @@ src/md_viewer/
   ui/preferences.py    Preferences window
 data/                  .desktop, GSettings schema, AppStream metainfo, icons
 data/styles/           built-in CSS styles (github*.css are generated — see tools/)
-tools/                 update_github_css.py: refresh vendored GitHub styles from npm
+tools/                 update_vendored.py: refresh vendored GitHub CSS, KaTeX, Mermaid from npm
+data/js/               the viewer's own page script (math/diagram rendering)
+data/vendor/           bundled KaTeX and Mermaid
 debian/                Debian packaging
 tests/                 pure unit tests (no GTK display needed)
 ```

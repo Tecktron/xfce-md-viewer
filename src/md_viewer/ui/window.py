@@ -4,13 +4,22 @@ Uses plain Gtk.ApplicationWindow so Xfwm4 draws the titlebar and the user's
 GTK theme applies. No libadwaita.
 
 Loading pipeline (never blocks the UI):
-  load_contents_async → render in a daemon thread → GLib.idle_add → load_html.
+  load_contents_async → render in a daemon thread → GLib.idle_add → load_html
+  → (load finished) mdViewer.enhance() for math/diagrams → restore scroll.
 Every load bumps ``self._generation``; stale results are dropped.
+
+Page scripts: the document's CSP blocks all of its own scripts. The viewer's
+scripts (data/js/enhance.js, plus KaTeX / Mermaid only when the page needs
+them) are WebKit *user scripts* in the isolated world SCRIPT_WORLD. Globals
+there persist for the page; plain evaluate_javascript() calls in a named
+world do NOT keep globals between calls, so libraries must be user scripts.
 """
 
 from __future__ import annotations
 
+import functools
 import html
+import json
 import logging
 import threading
 
@@ -19,13 +28,15 @@ import gi
 gi.require_version("Gdk", "4.0")
 gi.require_version("Gtk", "4.0")
 gi.require_version("WebKit", "6.0")
-from gi.repository import Gdk, Gio, GLib, Gtk, WebKit
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango, WebKit
 
 from .. import APP_ID, APP_NAME
-from ..document import render_document
+from ..document import Rendered, render_document
 from ..flavors import DEFAULT_FLAVOR, FLAVORS, FlavorUnavailableError, RenderError
 from ..history import History
 from ..links import LinkAction, classify_link, strip_fragment
+from ..paths import scripts_dir, vendor_dir
+from ..postprocess import Heading
 from ..settings import get_settings
 from ..styles import DEFAULT_STYLE, Style, resolve_style
 from .menus import context_menu_entries
@@ -67,19 +78,49 @@ _MESSAGE_HTML = """<!doctype html>
 """
 
 
+TOC_INDENT_PX = 14
+TOC_MARGIN_PX = 8
+
+# name -> file providing a user script for SCRIPT_WORLD
+_USER_SCRIPTS = {
+    "enhance": lambda: scripts_dir() / "enhance.js",
+    "katex": lambda: vendor_dir() / "katex" / "katex.min.js",
+    "mermaid": lambda: vendor_dir() / "mermaid" / "mermaid.min.js",
+}
+
+
+@functools.cache
+def _user_script(name: str) -> WebKit.UserScript | None:
+    """Load a user script once per process (Mermaid is ~5 MB); None if the file is missing."""
+    path = _USER_SCRIPTS[name]()
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError:
+        _log.warning("Page script %s unavailable (%s)", name, path, exc_info=True)
+        return None
+    return WebKit.UserScript.new_for_world(
+        source,
+        WebKit.UserContentInjectedFrames.TOP_FRAME,
+        WebKit.UserScriptInjectionTime.END,
+        SCRIPT_WORLD,
+        None,
+        None,
+    )
+
+
 def _render_page(
     text: str, title: str, flavor_id: str, style: Style | None, allow_remote_images: bool
-) -> tuple[str | None, str | None]:
-    """Worker-thread body: returns (page, None) or (None, error message). No GTK here."""
+) -> tuple[Rendered | None, str | None]:
+    """Worker-thread body: returns (rendered, None) or (None, error message). No GTK here."""
     try:
         style_css = style.read_css() if style is not None else ""
         scheme = style.scheme if style is not None else "auto"
-        page = render_document(text, flavor_id, style_css, title, scheme, allow_remote_images=allow_remote_images)
+        rendered = render_document(text, flavor_id, style_css, title, scheme, allow_remote_images=allow_remote_images)
     except FlavorUnavailableError as exc:
         return None, f"{exc}. Choose another flavor in View → Flavor, or install pandoc."
     except (RenderError, OSError) as exc:
         return None, str(exc)
-    return page, None
+    return rendered, None
 
 
 class ViewerWindow(Gtk.ApplicationWindow):
@@ -99,6 +140,9 @@ class ViewerWindow(Gtk.ApplicationWindow):
         self._deleted = False
         self._expected_load_uri: str | None = None
         self._restore_scroll: float | None = None
+        # Colour scheme to pass to mdViewer.enhance() once the page loads; None = nothing to enhance.
+        self._pending_enhance: str | None = None
+        self._toc_ids: list[str] = []
         # Set when the user picks a flavor/style from the View menu; None = follow the defaults.
         self._flavor_override: str | None = None
         self._style_override: str | None = None
@@ -143,13 +187,32 @@ class ViewerWindow(Gtk.ApplicationWindow):
         search_box.append(prev_btn)
         search_box.append(next_btn)
         search_box.append(self._match_label)
-        self._search_bar = Gtk.SearchBar(child=search_box, show_close_button=True)
+        # Hidden (not just collapsed) while closed: themes such as Greybird draw the
+        # search bar's padding and border even when its revealer is shut.
+        self._search_bar = Gtk.SearchBar(child=search_box, show_close_button=True, visible=False)
         self._search_bar.connect_entry(self._search_entry)
         self._search_bar.connect("notify::search-mode-enabled", self._on_search_mode_changed)
         box.append(self._search_bar)
 
-        self._webview = WebKit.WebView(vexpand=True, hexpand=True)
-        box.append(self._webview)
+        self._webview = WebKit.WebView(vexpand=True, hexpand=True, user_content_manager=WebKit.UserContentManager())
+
+        self._toc_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        self._toc_list.add_css_class("navigation-sidebar")
+        self._toc_list.set_placeholder(Gtk.Label(label="No headings", margin_top=12))
+        self._toc_list.connect("row-activated", self._on_toc_row_activated)
+        self._toc_pane = Gtk.ScrolledWindow(
+            child=self._toc_list, hscrollbar_policy=Gtk.PolicyType.NEVER, width_request=160, visible=False
+        )
+        paned = Gtk.Paned(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            start_child=self._toc_pane,
+            end_child=self._webview,
+            resize_start_child=False,
+            shrink_start_child=False,
+            position=240,
+            vexpand=True,
+        )
+        box.append(paned)
         self.set_child(box)
 
     def _configure_webview(self) -> None:
@@ -208,6 +271,20 @@ class ViewerWindow(Gtk.ApplicationWindow):
             stateful = Gio.SimpleAction.new_stateful(name, GLib.VariantType.new("s"), GLib.Variant.new_string(initial))
             stateful.connect("change-state", handler)
             self.add_action(stateful)
+
+        # Table of contents: F9 toggles (win.toc); the View menu shows either
+        # "Show…" or "Hide…" — only the matching action is enabled, and the menu
+        # items are hidden-when=action-disabled (the menu model is shared by all windows).
+        for name, callback in (
+            ("toc", lambda *_: self._set_toc_visible(not self._toc_pane.get_visible())),
+            ("toc-show", lambda *_: self._set_toc_visible(True)),
+            ("toc-hide", lambda *_: self._set_toc_visible(False)),
+        ):
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", callback)
+            self.add_action(action)
+        settings = get_settings()
+        self._set_toc_visible(settings.get_boolean("show-toc") if settings else False, save=False)
         self._update_actions()
 
     def _update_actions(self) -> None:
@@ -335,41 +412,130 @@ class ViewerWindow(Gtk.ApplicationWindow):
         settings = get_settings()
         allow_remote = settings.get_boolean("allow-remote-images") if settings else False
 
+        scheme = style.scheme if style is not None else "auto"
+
         def work() -> None:
-            page, error = _render_page(text, title, flavor_id, style, allow_remote)
-            GLib.idle_add(self._on_rendered, generation, file, page, error, scroll_y)
+            rendered, error = _render_page(text, title, flavor_id, style, allow_remote)
+            GLib.idle_add(self._on_rendered, generation, file, rendered, error, scroll_y, scheme)
 
         threading.Thread(target=work, daemon=True).start()
 
     def _on_rendered(
-        self, generation: int, file: Gio.File, page: str | None, error: str | None, scroll_y: float | None
+        self,
+        generation: int,
+        file: Gio.File,
+        rendered: Rendered | None,
+        error: str | None,
+        scroll_y: float | None,
+        scheme: str,
     ) -> bool:
         if generation != self._generation:
             return GLib.SOURCE_REMOVE
-        if page is None:
+        if rendered is None:
             name = html.escape(file.get_basename() or file.get_uri())
             self._show_message(f"Cannot render {name}: {html.escape(error or 'unknown error')}")
             return GLib.SOURCE_REMOVE
+        self._install_page_scripts(math=rendered.has_math, mermaid=rendered.has_mermaid)
+        self._pending_enhance = scheme if (rendered.has_math or rendered.has_mermaid) else None
+        self._populate_toc(rendered.headings)
         self._restore_scroll = scroll_y
         self._expected_load_uri = file.get_uri()
         # Base URI = the file itself, so relative images and links resolve next to it.
-        self._webview.load_html(page, file.get_uri())
+        self._webview.load_html(rendered.page, file.get_uri())
         return GLib.SOURCE_REMOVE
 
+    def _install_page_scripts(self, *, math: bool, mermaid: bool) -> None:
+        """Register only the user scripts this page needs (applies to the next load)."""
+        manager = self._webview.get_user_content_manager()
+        manager.remove_all_scripts()
+        for name, needed in (("enhance", True), ("katex", math), ("mermaid", mermaid)):
+            script = _user_script(name) if needed else None
+            if script is not None:
+                manager.add_script(script)
+
     def _show_message(self, message: str) -> None:
+        self._pending_enhance = None
+        self._restore_scroll = None
+        self._populate_toc([])
         self._expected_load_uri = "about:blank"
         self._webview.load_html(_MESSAGE_HTML.format(message=message), "about:blank")
 
     def _on_load_changed(self, webview: WebKit.WebView, event: WebKit.LoadEvent) -> None:
         if event != WebKit.LoadEvent.FINISHED:
             return
+        scheme, self._pending_enhance = self._pending_enhance, None
+        if scheme is None:
+            self._after_page_ready()
+            return
+        generation = self._generation
+
+        def on_enhanced(view: WebKit.WebView, result: Gio.AsyncResult) -> None:
+            try:
+                summary = json.loads(view.call_async_javascript_function_finish(result).to_string())
+                for error in summary.get("errors", []):
+                    _log.info("Page enhancement: %s", error)
+            except (GLib.Error, ValueError):
+                _log.debug("Math/diagram rendering failed", exc_info=True)
+            if generation == self._generation:
+                self._after_page_ready()
+
+        webview.call_async_javascript_function(
+            f"return await mdViewer.enhance({json.dumps({'scheme': scheme})});",
+            -1,
+            None,
+            SCRIPT_WORLD,
+            None,
+            None,
+            on_enhanced,
+        )
+
+    def _after_page_ready(self) -> None:
+        """Runs once the page is final (after math/diagrams changed its height)."""
         if self._restore_scroll is not None:
-            webview.evaluate_javascript(
+            self._webview.evaluate_javascript(
                 f"window.scrollTo(0, {float(self._restore_scroll)})", -1, SCRIPT_WORLD, None, None, None
             )
             self._restore_scroll = None
         if self._search_bar.get_search_mode() and self._search_entry.get_text():
             self._on_search_changed(self._search_entry)
+
+    # ------------------------------------------------------------------
+    # Table of contents
+    # ------------------------------------------------------------------
+
+    def _populate_toc(self, headings: list[Heading]) -> None:
+        self._toc_list.remove_all()
+        self._toc_ids = [h.id for h in headings]
+        if not headings:
+            return
+        top = min(h.level for h in headings)
+        for heading in headings:
+            text = heading.text or "(untitled)"
+            label = Gtk.Label(
+                label=text,
+                tooltip_text=text,
+                xalign=0,
+                ellipsize=Pango.EllipsizeMode.END,
+                margin_start=TOC_MARGIN_PX + (heading.level - top) * TOC_INDENT_PX,
+                margin_end=TOC_MARGIN_PX,
+                margin_top=2,
+                margin_bottom=2,
+            )
+            self._toc_list.append(label)
+
+    def _on_toc_row_activated(self, _list: Gtk.ListBox, row: Gtk.ListBoxRow) -> None:
+        index = row.get_index()
+        if 0 <= index < len(self._toc_ids):
+            script = f"mdViewer.scrollToId({json.dumps(self._toc_ids[index])})"
+            self._webview.evaluate_javascript(script, -1, SCRIPT_WORLD, None, None, None)
+
+    def _set_toc_visible(self, visible: bool, *, save: bool = True) -> None:
+        self._toc_pane.set_visible(visible)
+        self.lookup_action("toc-show").set_enabled(not visible)
+        self.lookup_action("toc-hide").set_enabled(visible)
+        settings = get_settings()
+        if save and settings is not None:
+            settings.set_boolean("show-toc", visible)
 
     def _update_title(self) -> None:
         if self._file is None:
@@ -504,6 +670,7 @@ class ViewerWindow(Gtk.ApplicationWindow):
     # ------------------------------------------------------------------
 
     def _open_find(self) -> None:
+        self._search_bar.set_visible(True)
         self._search_bar.set_search_mode(True)
         self._search_entry.grab_focus()
         self._search_entry.select_region(0, -1)
@@ -537,6 +704,7 @@ class ViewerWindow(Gtk.ApplicationWindow):
 
     def _on_search_mode_changed(self, bar: Gtk.SearchBar, _pspec: object) -> None:
         if not bar.get_search_mode():
+            bar.set_visible(False)
             self._webview.get_find_controller().search_finish()
             self._match_label.set_text("")
             self._webview.grab_focus()

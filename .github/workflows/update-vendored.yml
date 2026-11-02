@@ -1,7 +1,8 @@
 name: Update vendored assets
 
-# Weekly check for new upstream releases of vendored files. When one exists,
-# regenerate them and open (or update) a pull request for review.
+# Weekly check for new upstream releases of vendored packages (GitHub CSS,
+# KaTeX, Mermaid). For each package with a new version, regenerate its files and
+# open a pull request for review.
 # Requires repo setting: Settings → Actions → General →
 # "Allow GitHub Actions to create and approve pull requests".
 
@@ -15,34 +16,39 @@ permissions:
   pull-requests: write
 
 jobs:
-  github-markdown-css:
+  update:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [github-markdown-css, katex, mermaid]
     steps:
       - uses: actions/checkout@v4
 
       - name: Check for a new version
         id: check
         run: |
-          if python3 tools/update_github_css.py --check; then
+          if python3 tools/update_vendored.py --check "${{ matrix.package }}"; then
             echo "update=false" >> "$GITHUB_OUTPUT"
           else
             echo "update=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Regenerate styles
+      - name: Regenerate files
         if: steps.check.outputs.update == 'true'
         id: regen
         run: |
-          version=$(python3 tools/update_github_css.py | awk '{print $NF}')
+          version=$(python3 tools/update_vendored.py "${{ matrix.package }}" | awk '{print $NF}')
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Open pull request
         if: steps.check.outputs.update == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ matrix.package }}
           VERSION: ${{ steps.regen.outputs.version }}
         run: |
-          branch="vendored/github-markdown-css-$VERSION"
+          branch="vendored/$PACKAGE-$VERSION"
           if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
             echo "Branch $branch already exists; PR already open."
             exit 0
@@ -50,9 +56,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
-          git add data/styles/github*.css
-          git commit -m "Update github-markdown-css to $VERSION"
+          git add -A data/styles data/vendor
+          git commit -m "Update $PACKAGE to $VERSION"
           git push origin "$branch"
           gh pr create --base main --head "$branch" \
-            --title "Update github-markdown-css to $VERSION" \
-            --body "Automated update from npm via \`tools/update_github_css.py\`. Review the rendered GitHub styles before merging, and note the update in debian/changelog at the next release."
+            --title "Update $PACKAGE to $VERSION" \
+            --body "Automated update from npm via \`tools/update_vendored.py\`. Check rendering with the affected package before merging, and note the update in debian/changelog at the next release."

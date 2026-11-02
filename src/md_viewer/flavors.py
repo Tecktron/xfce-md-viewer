@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import markdown
 from markdown_it import MarkdownIt
 from mdit_py_plugins.anchors import anchors_plugin
+from mdit_py_plugins.dollarmath import dollarmath_plugin
 from mdit_py_plugins.footnote import footnote_plugin
 from mdit_py_plugins.tasklists import tasklists_plugin
 
@@ -86,6 +87,8 @@ def is_available(flavor_id: str) -> bool:
 def _markdown_it_gfm() -> MarkdownIt:
     md = MarkdownIt("commonmark", {"html": True}).enable(["table", "strikethrough"])
     md.use(tasklists_plugin).use(footnote_plugin).use(anchors_plugin, max_level=6)
+    # GitHub-style $math$: the $ must hug the formula and not touch digits ("$5 or $10" stays text).
+    md.use(dollarmath_plugin, allow_space=False, allow_digits=False)
     return md
 
 
@@ -106,7 +109,7 @@ def _render_pandoc(text: str, pandoc_format: str) -> str:
         raise FlavorUnavailableError("pandoc is not installed")
     try:
         result = subprocess.run(
-            [pandoc, "--from", pandoc_format, "--to", "html5", "--no-highlight"],
+            [pandoc, "--from", pandoc_format, "--to", "html5", "--no-highlight", "--katex"],
             input=text,
             capture_output=True,
             text=True,

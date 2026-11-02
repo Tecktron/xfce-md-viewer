@@ -30,6 +30,11 @@ install:
 	install -d $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/styles
 	install -m 644 data/styles/*.css $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/styles/
 
+	# Page scripts (ours) and vendored KaTeX / Mermaid
+	cp -r data/js data/vendor $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/
+	find $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/js $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/vendor \
+		-type d -exec chmod 755 {} + -o -type f -exec chmod 644 {} +
+
 	# GSettings schema
 	install -d $(DESTDIR)$(PREFIX)/share/glib-2.0/schemas
 	install -m 644 data/$(APP_ID).gschema.xml $(DESTDIR)$(PREFIX)/share/glib-2.0/schemas/

@@ -23,6 +23,10 @@
       <summary>Load images and media from the web</summary>
       <description>Scripts are always blocked; this only allows http/https images and media.</description>
     </key>
+    <key name="show-toc" type="b">
+      <default>false</default>
+      <summary>Show the table of contents sidebar in new windows</summary>
+    </key>
     <key name="zoom-level" type="d">
       <range min="0.3" max="5.0"/>
       <default>1.0</default>
