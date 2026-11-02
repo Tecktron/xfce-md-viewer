@@ -1,0 +1,24 @@
+Source: xfce-md-viewer
+Section: text
+Priority: optional
+Maintainer: Tecktron Studios <software@tecktron.net>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               pybuild-plugin-pyproject,
+               python3-all,
+               python3-setuptools
+Standards-Version: 4.7.0
+Homepage: https://github.com/Tecktron/xfce-md-viewer
+Rules-Requires-Root: no
+
+Package: xfce-md-viewer
+Architecture: all
+Depends: ${python3:Depends},
+         ${misc:Depends},
+         python3-gi,
+         gir1.2-gtk-4.0,
+         gir1.2-webkit-6.0
+Description: GTK4 Markdown viewer for Xfce
+ Markdown Viewer is a lightweight viewer (not an editor) for Markdown files,
+ built with GTK4 and WebKitGTK for the Xfce desktop. Launch it with the
+ md-viewer command or open .md files from your file manager.

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>net.tecktron.md_viewer</id>
+
+  <name>Markdown Viewer</name>
+  <summary>View Markdown files in multiple flavors and styles</summary>
+
+  <metadata_license>FSFAP</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <description>
+    <p>
+      Markdown Viewer is a lightweight GTK4 viewer for Markdown files, built for
+      Xfce. It is a viewer, not an editor.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">net.tecktron.md_viewer.desktop</launchable>
+
+  <url type="bugtracker">https://github.com/Tecktron/xfce-md-viewer/issues</url>
+  <url type="vcs-browser">https://github.com/Tecktron/xfce-md-viewer</url>
+
+  <provides>
+    <binary>md-viewer</binary>
+    <mediatype>text/markdown</mediatype>
+  </provides>
+
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+
+  <releases>
+    <release version="0.1.0" date="2026-11-02">
+      <description>
+        <p>Initial scaffold.</p>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1"/>
+</component>

@@ -1,0 +1,4 @@
+#!/usr/bin/python3
+from md_viewer.main import main
+
+main()

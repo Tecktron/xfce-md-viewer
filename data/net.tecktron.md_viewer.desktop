@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Markdown Viewer
+GenericName=Markdown Viewer
+Comment=View Markdown files in multiple flavors and styles
+Exec=md-viewer %F
+Icon=net.tecktron.md_viewer
+Terminal=false
+Type=Application
+Categories=Utility;TextTools;Viewer;
+Keywords=markdown;md;viewer;readme;gfm;commonmark;
+MimeType=text/markdown;text/x-markdown;
+StartupNotify=true
+StartupWMClass=net.tecktron.md_viewer
