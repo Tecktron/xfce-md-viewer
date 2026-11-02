@@ -5,11 +5,14 @@ from __future__ import annotations
 from gi.repository import Gio, GLib
 
 from .. import APP_NAME
+from ..flavors import FLAVORS
+from ..styles import Style
 
 # action name -> accelerators. Registered once on the application.
 ACCELS: dict[str, list[str]] = {
     "app.open": ["<Control>o"],
-    "app.quit": ["<Control>q"],
+    "app.preferences": ["<Control>comma"],
+    "app.quit": ["<Control>q"],  # no menu item: File → Close covers it; Ctrl+Q closes all windows
     "win.close": ["<Control>w"],
     "win.reload": ["F5", "<Control>r"],
     "win.print": ["<Control>p"],
@@ -51,7 +54,38 @@ def _item(label: str, action: str, display_accel: str | None = None) -> Gio.Menu
     return item
 
 
-def build_menu_model(recent_menu: Gio.Menu) -> Gio.Menu:
+def fill_flavor_menu(menu: Gio.Menu, pandoc_available: bool) -> None:
+    """Radio items for every flavor (action ``win.flavor``). Pandoc flavors are listed
+    in their own section and greyed out (no such action) when pandoc is missing."""
+    menu.remove_all()
+    builtin, pandoc = Gio.Menu(), Gio.Menu()
+    for flavor in FLAVORS.values():
+        section = pandoc if flavor.requires_pandoc else builtin
+        if flavor.requires_pandoc and not pandoc_available:
+            item = Gio.MenuItem.new(f"{flavor.name} (needs pandoc)", None)
+            item.set_action_and_target_value("win.flavor-unavailable", GLib.Variant.new_string(flavor.id))
+        else:
+            item = Gio.MenuItem.new(flavor.name, None)
+            item.set_action_and_target_value("win.flavor", GLib.Variant.new_string(flavor.id))
+        section.append_item(item)
+    menu.append_section(None, builtin)
+    menu.append_section(None, pandoc)
+
+
+def fill_style_menu(menu: Gio.Menu, styles: dict[str, Style]) -> None:
+    """Radio items for every style (action ``win.style``): built-ins, then the user's own."""
+    menu.remove_all()
+    builtin, user = Gio.Menu(), Gio.Menu()
+    for style in styles.values():
+        item = Gio.MenuItem.new(style.name.replace("_", "__"), None)
+        item.set_action_and_target_value("win.style", GLib.Variant.new_string(style.id))
+        (builtin if style.builtin else user).append_item(item)
+    menu.append_section(None, builtin)
+    if user.get_n_items():
+        menu.append_section(None, user)
+
+
+def build_menu_model(recent_menu: Gio.Menu, flavor_menu: Gio.Menu, style_menu: Gio.Menu) -> Gio.Menu:
     menu = Gio.Menu()
 
     file_menu = Gio.Menu()
@@ -65,7 +99,6 @@ def build_menu_model(recent_menu: Gio.Menu) -> Gio.Menu:
     file_menu.append_section(None, print_section)
     close_section = Gio.Menu()
     close_section.append("_Close", "win.close")
-    close_section.append("_Quit", "app.quit")
     file_menu.append_section(None, close_section)
     menu.append_submenu("_File", file_menu)
 
@@ -80,9 +113,16 @@ def build_menu_model(recent_menu: Gio.Menu) -> Gio.Menu:
     find_section.append("Find _Next", "win.find-next")
     find_section.append("Find Pre_vious", "win.find-previous")
     edit_menu.append_section(None, find_section)
+    prefs_section = Gio.Menu()
+    prefs_section.append("Pr_eferences", "app.preferences")
+    edit_menu.append_section(None, prefs_section)
     menu.append_submenu("_Edit", edit_menu)
 
     view_menu = Gio.Menu()
+    rendering = Gio.Menu()
+    rendering.append_submenu("_Flavor", flavor_menu)
+    rendering.append_submenu("_Style", style_menu)
+    view_menu.append_section(None, rendering)
     zoom = Gio.Menu()
     zoom.append("Zoom _In", "win.zoom-in")
     zoom.append("Zoom _Out", "win.zoom-out")

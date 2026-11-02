@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import gi
@@ -12,11 +14,20 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib, Gtk
 
 from . import APP_ID, APP_NAME, __version__
+from .flavors import pandoc_available
 from .links import MARKDOWN_EXTENSIONS, is_markdown_uri
-from .ui.menus import ACCELS, build_menu_model
+from .paths import user_styles_dir
+from .settings import get_settings
+from .styles import Style, discover_styles
+from .ui.menus import ACCELS, build_menu_model, fill_flavor_menu, fill_style_menu
+from .ui.preferences import PreferencesWindow
 from .ui.window import ViewerWindow
 
+_log = logging.getLogger(__name__)
+
 MAX_RECENT = 10
+STYLES_RESCAN_DELAY_MS = 300
+_DEFAULT_KEYS = ("default-flavor", "default-style", "allow-remote-images")
 
 
 class MdViewerApplication(Gtk.Application):
@@ -29,18 +40,30 @@ class MdViewerApplication(Gtk.Application):
     def __init__(self) -> None:
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_OPEN)
         self._recent_menu = Gio.Menu()
-        self.menu_model = build_menu_model(self._recent_menu)
+        self._flavor_menu = Gio.Menu()
+        self._style_menu = Gio.Menu()
+        self.menu_model = build_menu_model(self._recent_menu, self._flavor_menu, self._style_menu)
         self._recent_manager = Gtk.RecentManager.get_default()
         self._recent_manager.connect("changed", lambda *_: self._refresh_recent_menu())
 
+        self.pandoc_available = pandoc_available()
+        self.styles: dict[str, Style] = {}
+        self._styles_monitor: Gio.FileMonitor | None = None
+        self._styles_rescan_source = 0
+        self._preferences: PreferencesWindow | None = None
+
         self.connect("activate", self._on_activate)
         self.connect("open", self._on_open)
+        self.connect("startup", self._on_startup)
         self._add_actions()
         self._refresh_recent_menu()
+        fill_flavor_menu(self._flavor_menu, self.pandoc_available)
+        self._rescan_styles()
 
     def _add_actions(self) -> None:
         for name, callback in (
             ("open", self._on_open_action),
+            ("preferences", self._on_preferences),
             ("about", self._on_about),
             ("quit", lambda *_: self.quit()),
         ):
@@ -54,6 +77,50 @@ class MdViewerApplication(Gtk.Application):
 
         for action_name, accels in ACCELS.items():
             self.set_accels_for_action(action_name, accels)
+
+    def _on_startup(self, _app: Gtk.Application) -> None:
+        # Runs only in the primary instance (not in a second launch that forwards files).
+        self._watch_user_styles()
+        settings = get_settings()
+        if settings is not None:
+            for key in _DEFAULT_KEYS:
+                settings.connect(f"changed::{key}", lambda *_: self._for_each_window(ViewerWindow.on_defaults_changed))
+
+    def _for_each_window(self, method: Callable[[ViewerWindow], None]) -> None:
+        for win in self.get_windows():
+            if isinstance(win, ViewerWindow):
+                method(win)
+
+    # ------------------------------------------------------------------
+    # Styles
+    # ------------------------------------------------------------------
+
+    def _watch_user_styles(self) -> None:
+        directory = Gio.File.new_for_path(str(user_styles_dir()))
+        try:
+            # Works even if the directory doesn't exist yet; GLib notices when it is created.
+            self._styles_monitor = directory.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, None)
+        except GLib.Error:
+            _log.debug("Cannot watch %s", directory.get_parse_name(), exc_info=True)
+            return
+        self._styles_monitor.connect("changed", self._on_styles_dir_changed)
+
+    def _on_styles_dir_changed(self, *_args: object) -> None:
+        if self._styles_rescan_source:
+            GLib.source_remove(self._styles_rescan_source)
+        self._styles_rescan_source = GLib.timeout_add(STYLES_RESCAN_DELAY_MS, self._on_styles_rescan_timeout)
+
+    def _on_styles_rescan_timeout(self) -> bool:
+        self._styles_rescan_source = 0
+        self._rescan_styles()
+        self._for_each_window(ViewerWindow.on_styles_changed)
+        return GLib.SOURCE_REMOVE
+
+    def _rescan_styles(self) -> None:
+        self.styles = discover_styles()
+        fill_style_menu(self._style_menu, self.styles)
+        if self._preferences is not None:
+            self._preferences.refresh_styles()
 
     # ------------------------------------------------------------------
     # Windows and files
@@ -131,6 +198,19 @@ class MdViewerApplication(Gtk.Application):
         parent = self.get_active_window()
         for index in range(files.get_n_items()):
             self.open_file(files.get_item(index), parent)
+
+    def _on_preferences(self, *_args: object) -> None:
+        if self._preferences is None:
+            self._preferences = PreferencesWindow(application=self)
+            self._preferences.connect("close-request", self._on_preferences_closed)
+        parent = self.get_active_window()
+        if isinstance(parent, ViewerWindow):
+            self._preferences.set_transient_for(parent)
+        self._preferences.present()
+
+    def _on_preferences_closed(self, _win: Gtk.Window) -> bool:
+        self._preferences = None
+        return False
 
     def _on_about(self, *_args: object) -> None:
         about = Gtk.AboutDialog(

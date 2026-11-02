@@ -2,7 +2,7 @@
 
 from md_viewer import styles
 from md_viewer.paths import builtin_styles_dir
-from md_viewer.styles import discover_styles
+from md_viewer.styles import discover_styles, resolve_style
 
 
 def _write(path, text):
@@ -83,3 +83,21 @@ def test_bundled_github_variants(tmp_path):
         css = found[stem].read_css()
         assert "upstream: github-markdown-css" in css
         assert ".markdown-body" in css
+
+
+def test_resolve_style_prefers_requested(tmp_path):
+    _write(tmp_path / "b" / "github.css", "/* name: GitHub */")
+    _write(tmp_path / "b" / "plain.css", "/* name: Plain */")
+    found = discover_styles(tmp_path / "b", tmp_path / "u")
+    assert resolve_style(found, "plain").id == "plain"
+
+
+def test_resolve_style_falls_back_to_default_then_any(tmp_path):
+    _write(tmp_path / "b" / "github.css", "/* name: GitHub */")
+    _write(tmp_path / "b" / "plain.css", "/* name: Plain */")
+    found = discover_styles(tmp_path / "b", tmp_path / "u")
+    assert resolve_style(found, "deleted-user-style").id == "github"
+    assert resolve_style(found, None).id == "github"
+    del found["github"]
+    assert resolve_style(found, "nope").id == "plain"
+    assert resolve_style({}, "nope") is None

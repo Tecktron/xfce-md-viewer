@@ -109,8 +109,16 @@ src/md_viewer/
   links.py        classify_link(target, current) → LinkAction (ALLOW in-page anchor,
                   OPEN_DOCUMENT local .md, OPEN_EXTERNAL file/web/mail, BLOCK other schemes)
   history.py      History — browser-style back/forward list of file URIs
-  ui/menus.py     ACCELS (all shortcuts, registered once by the app) and
-                  build_menu_model(recent_menu); one model shared by all windows
+  ui/menus.py     ACCELS (all shortcuts, registered once by the app);
+                  build_menu_model(recent, flavor, style menus) — one model shared by all
+                  windows; fill_flavor_menu() (pandoc flavors → disabled
+                  "win.flavor-unavailable" when pandoc missing); fill_style_menu();
+                  context_menu_entries()
+  ui/preferences.py
+                  PreferencesWindow (Gtk.Window, instant-apply): default flavor/style
+                  dropdowns, allow-remote-images checkbox (settings.bind), styles folder.
+                  Disconnects its GSettings handlers on close; settings changes only
+                  re-select (never rebuild the model inside notify::selected).
   ui/window.py    ViewerWindow (Gtk.ApplicationWindow): PopoverMenuBar, Gtk.SearchBar,
                   WebKit.WebView. See "Viewer window" below.
 data/styles/      built-in styles. github.css / github-light.css / github-dark.css are
@@ -161,6 +169,22 @@ drive a real window in-process (create `MdViewerApplication`, swap its
 temp compiled schema dir. Use `win.activate_action("win.<name>")` — the bare
 name silently does nothing. Synthetic X input is blocked by Xfwm focus-stealing
 prevention, so don't rely on xdotool keys/clicks.
+
+## Flavors, styles and defaults
+
+- GSettings: `default-flavor`, `default-style`, `allow-remote-images`, `zoom-level`,
+  window size keys.
+- **App** (`main.py`) owns `styles` (re-scanned when the user styles dir changes,
+  debounced `STYLES_RESCAN_DELAY_MS`), `pandoc_available` (checked at startup), the
+  flavor/style menus and the single Preferences window. On a defaults change or a
+  styles change it calls `ViewerWindow.on_defaults_changed()` / `on_styles_changed()`
+  on every window.
+- **Window** has stateful actions `win.flavor` / `win.style` (string targets, radio
+  items in View). Picking one sets `_flavor_override` / `_style_override`; `None`
+  means "follow the defaults". Effective style = override if it still exists →
+  user default → built-in default (`resolve_style`).
+- Remote images: `document.content_security_policy(allow_remote_images)`; scripts
+  are blocked in both policies.
 
 ## Planned (agreed, not yet built)
 

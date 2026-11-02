@@ -77,3 +77,11 @@ def discover_styles(builtin_dir: Path | None = None, user_dir: Path | None = Non
     styles = _load_dir(builtin_dir or builtin_styles_dir(), builtin=True)
     styles.update(_load_dir(user_dir or user_styles_dir(), builtin=False))
     return dict(sorted(styles.items(), key=lambda item: item[1].name.casefold()))
+
+
+def resolve_style(styles: dict[str, Style], style_id: str | None) -> Style | None:
+    """*style_id* if it exists, else the default style, else any style, else None."""
+    for candidate in (style_id, DEFAULT_STYLE):
+        if candidate is not None and candidate in styles:
+            return styles[candidate]
+    return next(iter(styles.values()), None)

@@ -23,11 +23,11 @@ from gi.repository import Gdk, Gio, GLib, Gtk, WebKit
 
 from .. import APP_ID, APP_NAME
 from ..document import render_document
-from ..flavors import DEFAULT_FLAVOR, FlavorUnavailableError, RenderError
+from ..flavors import DEFAULT_FLAVOR, FLAVORS, FlavorUnavailableError, RenderError
 from ..history import History
 from ..links import LinkAction, classify_link, strip_fragment
 from ..settings import get_settings
-from ..styles import DEFAULT_STYLE, discover_styles
+from ..styles import DEFAULT_STYLE, Style, resolve_style
 from .menus import context_menu_entries
 
 _log = logging.getLogger(__name__)
@@ -67,15 +67,19 @@ _MESSAGE_HTML = """<!doctype html>
 """
 
 
-def _render_page(text: str, title: str) -> tuple[str | None, str | None]:
+def _render_page(
+    text: str, title: str, flavor_id: str, style: Style | None, allow_remote_images: bool
+) -> tuple[str | None, str | None]:
     """Worker-thread body: returns (page, None) or (None, error message). No GTK here."""
-    style = discover_styles().get(DEFAULT_STYLE)
     try:
         style_css = style.read_css() if style is not None else ""
         scheme = style.scheme if style is not None else "auto"
-        return render_document(text, DEFAULT_FLAVOR, style_css, title, scheme), None
-    except (FlavorUnavailableError, RenderError, OSError) as exc:
+        page = render_document(text, flavor_id, style_css, title, scheme, allow_remote_images=allow_remote_images)
+    except FlavorUnavailableError as exc:
+        return None, f"{exc}. Choose another flavor in View → Flavor, or install pandoc."
+    except (RenderError, OSError) as exc:
         return None, str(exc)
+    return page, None
 
 
 class ViewerWindow(Gtk.ApplicationWindow):
@@ -95,6 +99,9 @@ class ViewerWindow(Gtk.ApplicationWindow):
         self._deleted = False
         self._expected_load_uri: str | None = None
         self._restore_scroll: float | None = None
+        # Set when the user picks a flavor/style from the View menu; None = follow the defaults.
+        self._flavor_override: str | None = None
+        self._style_override: str | None = None
 
         self._build_ui()
         self._configure_webview()
@@ -193,6 +200,14 @@ class ViewerWindow(Gtk.ApplicationWindow):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", callback)
             self.add_action(action)
+
+        for name, initial, handler in (
+            ("flavor", self._effective_flavor(), self._on_flavor_chosen),
+            ("style", self._effective_style_id(), self._on_style_chosen),
+        ):
+            stateful = Gio.SimpleAction.new_stateful(name, GLib.VariantType.new("s"), GLib.Variant.new_string(initial))
+            stateful.connect("change-state", handler)
+            self.add_action(stateful)
         self._update_actions()
 
     def _update_actions(self) -> None:
@@ -201,6 +216,56 @@ class ViewerWindow(Gtk.ApplicationWindow):
             self.lookup_action(name).set_enabled(has_doc)
         self.lookup_action("back").set_enabled(self._history.can_go_back())
         self.lookup_action("forward").set_enabled(self._history.can_go_forward())
+
+    # ------------------------------------------------------------------
+    # Flavor and style
+    # ------------------------------------------------------------------
+
+    def _styles(self) -> dict[str, Style]:
+        app = self.get_application()
+        return getattr(app, "styles", {})
+
+    def _effective_flavor(self) -> str:
+        settings = get_settings()
+        flavor = self._flavor_override or (settings.get_string("default-flavor") if settings else DEFAULT_FLAVOR)
+        return flavor if flavor in FLAVORS else DEFAULT_FLAVOR
+
+    def _effective_style(self) -> Style | None:
+        """This window's choice if it still exists, else the user's default, else the built-in default."""
+        styles = self._styles()
+        if self._style_override in styles:
+            return styles[self._style_override]
+        settings = get_settings()
+        return resolve_style(styles, settings.get_string("default-style") if settings else DEFAULT_STYLE)
+
+    def _effective_style_id(self) -> str:
+        style = self._effective_style()
+        return style.id if style is not None else DEFAULT_STYLE
+
+    def _sync_choice_actions(self) -> None:
+        """Make the View menu's radio items show what this window actually uses."""
+        self.lookup_action("flavor").set_state(GLib.Variant.new_string(self._effective_flavor()))
+        self.lookup_action("style").set_state(GLib.Variant.new_string(self._effective_style_id()))
+
+    def _on_flavor_chosen(self, action: Gio.SimpleAction, value: GLib.Variant) -> None:
+        self._flavor_override = value.get_string()
+        action.set_state(value)
+        self.reload()
+
+    def _on_style_chosen(self, action: Gio.SimpleAction, value: GLib.Variant) -> None:
+        self._style_override = value.get_string()
+        action.set_state(value)
+        self.reload()
+
+    def on_defaults_changed(self) -> None:
+        """Called by the app when a default changes in Preferences."""
+        self._sync_choice_actions()
+        self.reload()
+
+    def on_styles_changed(self) -> None:
+        """Called by the app after the user styles folder changed (added/edited/removed CSS)."""
+        self._sync_choice_actions()
+        self.reload()
 
     # ------------------------------------------------------------------
     # Document loading
@@ -266,9 +331,12 @@ class ViewerWindow(Gtk.ApplicationWindow):
             return
         text = contents.decode("utf-8", errors="replace")
         title = file.get_basename() or file.get_uri()
+        flavor_id, style = self._effective_flavor(), self._effective_style()
+        settings = get_settings()
+        allow_remote = settings.get_boolean("allow-remote-images") if settings else False
 
         def work() -> None:
-            page, error = _render_page(text, title)
+            page, error = _render_page(text, title, flavor_id, style, allow_remote)
             GLib.idle_add(self._on_rendered, generation, file, page, error, scroll_y)
 
         threading.Thread(target=work, daemon=True).start()

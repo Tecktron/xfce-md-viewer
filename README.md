@@ -2,11 +2,10 @@
 
 A lightweight GTK4 Markdown **viewer** (not an editor) for the Xfce desktop.
 
-> **Status:** early development (0.1.0). Viewing, auto-reload, links, find,
-> zoom and printing work with GitHub Flavored Markdown and the GitHub style;
-> switching flavors/styles is coming next.
+> **Status:** early development (0.1.0). Core features work; release polish
+> (icons, shortcuts window, docs) is next.
 
-## Planned features
+## Features
 
 - Multiple Markdown flavors: GitHub Flavored (default), CommonMark, original
   Markdown.pl, PHP Markdown Extra — plus Pandoc Markdown, MultiMarkdown and
@@ -14,7 +13,8 @@ A lightweight GTK4 Markdown **viewer** (not an editor) for the Xfce desktop.
 - CSS styles: GitHub (auto/light/dark, from
   [github-markdown-css](https://github.com/sindresorhus/github-markdown-css)),
   Plain, and your own: drop a `.css` file into `~/.local/share/md-viewer/styles/`
-- Choose your default flavor and style
+- Switch flavor and style per window from the **View** menu; choose your
+  defaults in **Edit → Preferences**
 - Auto-reload when the file changes on disk
 - Syntax-highlighted code blocks, math (KaTeX) and Mermaid diagrams
 - Find, zoom, print / export to PDF
@@ -55,17 +55,48 @@ md-viewer README.md        # open a file
 md-viewer a.md b.md        # one window per file
 ```
 
+### Flavors and styles
+
+**View → Flavor** and **View → Style** change the current window. Your defaults
+for new windows (GitHub Flavored + GitHub to start) live in
+**Edit → Preferences**; windows you haven't switched by hand follow them.
+
+### Custom styles
+
+Put a `.css` file in `~/.local/share/md-viewer/styles/` (Preferences has an
+**Open Styles Folder** button). It shows up in View → Style immediately, and
+edits re-render open documents live. Start it with a header:
+
+```css
+/* name: My Style
+   description: One line about it
+   scheme: auto */
+```
+
+`scheme` is `light`, `dark` or `auto` (follow the system) and picks matching
+code-highlighting colours. Rendered Markdown sits inside
+`<article class="markdown-body">`; code blocks are
+`<pre class="highlight"><code class="language-…">`. A user style with the same
+file name as a built-in one replaces it.
+
+### Remote content
+
+Documents can't run scripts or reach the network. To show images hosted on
+the web, enable **Load remote images** in Preferences.
+
+### Other
+
 You can also drag files onto a window. The view reloads automatically when
 the file changes on disk, keeping your scroll position. Links to other
 Markdown files open in the same window (Ctrl+click: new window); web links
-open in your browser. Documents can't run scripts or load anything from the
-network.
+open in your browser.
 
 Or right-click a `.md` file in Thunar → **Open With → Markdown Viewer**.
 
 | Shortcut | Action |
 |---|---|
 | Ctrl+O | Open file |
+| Ctrl+, | Preferences |
 | F5 / Ctrl+R | Reload |
 | Ctrl+P | Print / export to PDF |
 | Ctrl+F | Find |
@@ -73,7 +104,7 @@ Or right-click a `.md` file in Thunar → **Open With → Markdown Viewer**.
 | Ctrl+= / Ctrl+− / Ctrl+0 | Zoom in / out / reset (or Ctrl+mouse wheel) |
 | Alt+← / Alt+→ | Back / forward |
 | Ctrl+W | Close window |
-| Ctrl+Q | Quit |
+| Ctrl+Q | Quit (close all windows) |
 
 ## Running from source (development)
 
@@ -133,7 +164,8 @@ src/md_viewer/
   paths.py             data and user directories
   settings.py          GSettings with fallback when schema is missing
   ui/window.py         ViewerWindow — WebKit view, reload, find, zoom, print
-  ui/menus.py          menu bar model and keyboard shortcuts
+  ui/menus.py          menu bar model, flavor/style submenus, keyboard shortcuts
+  ui/preferences.py    Preferences window
 data/                  .desktop, GSettings schema, AppStream metainfo, icons
 data/styles/           built-in CSS styles (github*.css are generated — see tools/)
 tools/                 update_github_css.py: refresh vendored GitHub styles from npm
