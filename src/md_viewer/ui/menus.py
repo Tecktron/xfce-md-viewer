@@ -12,7 +12,7 @@ from ..styles import Style
 ACCELS: dict[str, list[str]] = {
     "app.open": ["<Control>o"],
     "app.preferences": ["<Control>comma"],
-    "app.quit": ["<Control>q"],  # no menu item: File → Close covers it; Ctrl+Q closes all windows
+    "app.quit": ["<Control>q"],  # always works; the menu's Quit item uses app.quit-all
     "win.close": ["<Control>w"],
     "win.reload": ["F5", "<Control>r"],
     "win.print": ["<Control>p"],
@@ -100,6 +100,13 @@ def build_menu_model(recent_menu: Gio.Menu, flavor_menu: Gio.Menu, style_menu: G
     close_section = Gio.Menu()
     close_section.append("_Close", "win.close")
     file_menu.append_section(None, close_section)
+    # Only shown while several windows are open (app enables app.quit-all then);
+    # with one window Close already does the same thing.
+    quit_section = Gio.Menu()
+    quit_item = _item("Close _All", "app.quit-all", "<Control>q")
+    quit_item.set_attribute_value("hidden-when", GLib.Variant.new_string("action-disabled"))
+    quit_section.append_item(quit_item)
+    file_menu.append_section(None, quit_section)
     menu.append_submenu("_File", file_menu)
 
     edit_menu = Gio.Menu()

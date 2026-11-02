@@ -158,6 +158,11 @@ files is recorded in `debian/copyright`.
   would bypass our policy, and only offers Select All for editable content).
   Layout: Copy (greyed via a disabled GAction when nothing is selected), Copy Link /
   Copy Image extras, separator, Select All.
+- **File → Close All** is its own menu section using `app.quit-all` with
+  `hidden-when="action-disabled"`; the app enables that action only while more than
+  one ViewerWindow is open (`window-added` / `window-removed`), so with one window
+  only Close shows and the section's separator disappears too. Ctrl+Q is bound to
+  `app.quit`, which is always enabled.
 - **GTK 4 popover menus have a ~46 px minimum height**, so any one-item menu shows
   ~20 px of empty space at the bottom (theme-independent). Never ship a one-item menu.
 - **Copy / Select All** are native WebKit keys; menu items only *display* the accel.

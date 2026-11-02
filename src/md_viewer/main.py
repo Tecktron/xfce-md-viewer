@@ -55,6 +55,8 @@ class MdViewerApplication(Gtk.Application):
         self.connect("activate", self._on_activate)
         self.connect("open", self._on_open)
         self.connect("startup", self._on_startup)
+        self.connect("window-added", self._on_window_count_changed)
+        self.connect("window-removed", self._on_window_count_changed)
         self._add_actions()
         self._refresh_recent_menu()
         fill_flavor_menu(self._flavor_menu, self.pandoc_available)
@@ -66,10 +68,12 @@ class MdViewerApplication(Gtk.Application):
             ("preferences", self._on_preferences),
             ("about", self._on_about),
             ("quit", lambda *_: self.quit()),
+            ("quit-all", lambda *_: self.quit()),
         ):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", callback)
             self.add_action(action)
+        self.lookup_action("quit-all").set_enabled(False)
 
         open_recent = Gio.SimpleAction.new("open-recent", GLib.VariantType.new("s"))
         open_recent.connect("activate", self._on_open_recent)
@@ -85,6 +89,11 @@ class MdViewerApplication(Gtk.Application):
         if settings is not None:
             for key in _DEFAULT_KEYS:
                 settings.connect(f"changed::{key}", lambda *_: self._for_each_window(ViewerWindow.on_defaults_changed))
+
+    def _on_window_count_changed(self, _app: Gtk.Application, _win: Gtk.Window) -> None:
+        """File → Quit only makes sense (and is only shown) with more than one viewer window."""
+        viewers = sum(isinstance(win, ViewerWindow) for win in self.get_windows())
+        self.lookup_action("quit-all").set_enabled(viewers > 1)
 
     def _for_each_window(self, method: Callable[[ViewerWindow], None]) -> None:
         for win in self.get_windows():

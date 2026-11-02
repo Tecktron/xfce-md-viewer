@@ -113,3 +113,13 @@ def test_menu_model_builds():
     model = build_menu_model(Gio.Menu(), Gio.Menu(), Gio.Menu())
     labels = [model.get_item_attribute_value(i, "label").get_string() for i in range(model.get_n_items())]
     assert labels == ["_File", "_Edit", "_View", "_Help"]
+
+
+def test_file_menu_close_then_hideable_quit_section():
+    model = build_menu_model(Gio.Menu(), Gio.Menu(), Gio.Menu())
+    file_menu = model.get_item_link(0, Gio.MENU_LINK_SUBMENU)
+    last = file_menu.get_item_link(file_menu.get_n_items() - 1, Gio.MENU_LINK_SECTION)
+    before = file_menu.get_item_link(file_menu.get_n_items() - 2, Gio.MENU_LINK_SECTION)
+    assert _items(before) == [("_Close", "win.close", "")]
+    assert _items(last) == [("Close _All", "app.quit-all", "")]
+    assert last.get_item_attribute_value(0, "hidden-when").get_string() == "action-disabled"
