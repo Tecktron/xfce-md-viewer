@@ -106,8 +106,13 @@ src/md_viewer/
   paths.py        data_dir() (repo data/ in dev, /usr/share/xfce-md-viewer installed),
                   builtin_styles_dir(), user_styles_dir()
   settings.py     get_settings() → Gio.Settings | None (None when schema not installed)
-  ui/window.py    ViewerWindow (Gtk.ApplicationWindow); PopoverMenuBar; WebKit.WebView;
-                  load_file() renders with defaults; window size persistence
+  links.py        classify_link(target, current) → LinkAction (ALLOW in-page anchor,
+                  OPEN_DOCUMENT local .md, OPEN_EXTERNAL file/web/mail, BLOCK other schemes)
+  history.py      History — browser-style back/forward list of file URIs
+  ui/menus.py     ACCELS (all shortcuts, registered once by the app) and
+                  build_menu_model(recent_menu); one model shared by all windows
+  ui/window.py    ViewerWindow (Gtk.ApplicationWindow): PopoverMenuBar, Gtk.SearchBar,
+                  WebKit.WebView. See "Viewer window" below.
 data/styles/      built-in styles. github.css / github-light.css / github-dark.css are
                   GENERATED from npm github-markdown-css by tools/update_github_css.py —
                   never hand-edit; change the script (header/LAYOUT_CSS) and re-run.
@@ -124,6 +129,51 @@ when upstream has a new release and opens a PR. Needs the repo setting
 files is recorded in `debian/copyright`.
 
 ---
+
+## Viewer window (ui/window.py)
+
+- **Loading:** `load_contents_async` → `_render_page()` in a daemon thread →
+  `GLib.idle_add(_on_rendered)` → `load_html(page, base_uri=file uri)`.
+  `self._generation` is bumped on every load/reload/close; callbacks with a stale
+  generation do nothing. `is_reload=True` failures keep the last good render.
+- **Navigation policy (`_on_decide_policy`):** non-click navigations are allowed
+  only when the URI equals `self._expected_load_uri` (set just before our own
+  `load_html`) — this blocks meta refresh, forms, WebKit's own file drops. Clicks
+  go through `classify_link`. External opens use `Gio.AppInfo.launch_default_for_uri`
+  (works on Xfce without a portal).
+- **Our JavaScript** runs in the isolated world `SCRIPT_WORLD` via
+  `evaluate_javascript`; the page CSP does not block it, and the document can't see it.
+- **File watching:** `Gio.FileMonitor` (WATCH_MOVES), debounced `RELOAD_DEBOUNCE_MS`;
+  on timeout, `query_exists` decides reload vs "(deleted)" title.
+- **Context menu** is rebuilt from scratch from the hit test via
+  `menus.context_menu_entries()` (WebKit's default has Reload/Back/Open Link, which
+  would bypass our policy, and only offers Select All for editable content).
+  Layout: Copy (greyed via a disabled GAction when nothing is selected), Copy Link /
+  Copy Image extras, separator, Select All.
+- **GTK 4 popover menus have a ~46 px minimum height**, so any one-item menu shows
+  ~20 px of empty space at the bottom (theme-independent). Never ship a one-item menu.
+- **Copy / Select All** are native WebKit keys; menu items only *display* the accel.
+
+**Manual test harness:** GTK/WebKit wiring isn't unit-tested. To exercise it,
+drive a real window in-process (create `MdViewerApplication`, swap its
+`activate` handler, step with `GLib.timeout_add`, inspect via
+`evaluate_javascript` in `SCRIPT_WORLD`). Use `GSETTINGS_BACKEND=memory` and a
+temp compiled schema dir. Use `win.activate_action("win.<name>")` — the bare
+name silently does nothing. Synthetic X input is blocked by Xfwm focus-stealing
+prevention, so don't rely on xdotool keys/clicks.
+
+## Planned (agreed, not yet built)
+
+- **Milestone 6 — Help menu:** Keyboard Shortcuts window and "Report a Problem"
+  (GitHub issues) above a separator, then About at the bottom. Fixes the current
+  one-item Help menu gap.
+
+## Theming notes
+
+GTK 4 has no classic menus; all menus are popovers styled by the theme's
+`gtk-4.0/gtk.css`. Greybird's GTK 4 port is partial (the `Theme parser error`
+warnings), so menus won't match GTK 3 apps exactly. Accepted for now. repoman
+can't help here: it uses libadwaita, which ignores the system theme.
 
 ## Window management
 

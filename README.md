@@ -2,8 +2,9 @@
 
 A lightweight GTK4 Markdown **viewer** (not an editor) for the Xfce desktop.
 
-> **Status:** early development (0.1.0). Files render with GitHub Flavored
-> Markdown and the GitHub style; switching flavors/styles is coming next.
+> **Status:** early development (0.1.0). Viewing, auto-reload, links, find,
+> zoom and printing work with GitHub Flavored Markdown and the GitHub style;
+> switching flavors/styles is coming next.
 
 ## Planned features
 
@@ -54,11 +55,23 @@ md-viewer README.md        # open a file
 md-viewer a.md b.md        # one window per file
 ```
 
+You can also drag files onto a window. The view reloads automatically when
+the file changes on disk, keeping your scroll position. Links to other
+Markdown files open in the same window (Ctrl+click: new window); web links
+open in your browser. Documents can't run scripts or load anything from the
+network.
+
 Or right-click a `.md` file in Thunar → **Open With → Markdown Viewer**.
 
 | Shortcut | Action |
 |---|---|
 | Ctrl+O | Open file |
+| F5 / Ctrl+R | Reload |
+| Ctrl+P | Print / export to PDF |
+| Ctrl+F | Find |
+| F3 / Shift+F3 | Next / previous match |
+| Ctrl+= / Ctrl+− / Ctrl+0 | Zoom in / out / reset (or Ctrl+mouse wheel) |
+| Alt+← / Alt+→ | Back / forward |
 | Ctrl+W | Close window |
 | Ctrl+Q | Quit |
 
@@ -110,14 +123,17 @@ the oldest versions the app supports.
 ```
 bin/md-viewer          launcher script (used by make install)
 src/md_viewer/
-  main.py              MdViewerApplication — single instance, opens files
+  main.py              MdViewerApplication — single instance, opens files, recent menu
   flavors.py           Markdown flavors and their parser backends
   highlight.py         pygments syntax highlighting for code blocks
   styles.py            CSS style discovery (built-in + user)
   document.py          assembles the final HTML page
+  links.py             what a clicked link does (open here / externally / block)
+  history.py           back/forward history
   paths.py             data and user directories
   settings.py          GSettings with fallback when schema is missing
-  ui/window.py         ViewerWindow — menu bar + WebKit view
+  ui/window.py         ViewerWindow — WebKit view, reload, find, zoom, print
+  ui/menus.py          menu bar model and keyboard shortcuts
 data/                  .desktop, GSettings schema, AppStream metainfo, icons
 data/styles/           built-in CSS styles (github*.css are generated — see tools/)
 tools/                 update_github_css.py: refresh vendored GitHub styles from npm

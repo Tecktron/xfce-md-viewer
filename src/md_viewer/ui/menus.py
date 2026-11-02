@@ -1,0 +1,100 @@
+"""The menu bar model shared by every window, and the app's keyboard shortcuts."""
+
+from __future__ import annotations
+
+from gi.repository import Gio, GLib
+
+from .. import APP_NAME
+
+# action name -> accelerators. Registered once on the application.
+ACCELS: dict[str, list[str]] = {
+    "app.open": ["<Control>o"],
+    "app.quit": ["<Control>q"],
+    "win.close": ["<Control>w"],
+    "win.reload": ["F5", "<Control>r"],
+    "win.print": ["<Control>p"],
+    "win.find": ["<Control>f"],
+    "win.find-next": ["F3", "<Control>g"],
+    "win.find-previous": ["<Shift>F3", "<Control><Shift>g"],
+    "win.zoom-in": ["<Control>plus", "<Control>equal", "<Control>KP_Add"],
+    "win.zoom-out": ["<Control>minus", "<Control>KP_Subtract"],
+    "win.zoom-reset": ["<Control>0", "<Control>KP_0"],
+    "win.back": ["<Alt>Left"],
+    "win.forward": ["<Alt>Right"],
+}
+
+
+def context_menu_entries(*, selection: bool, link: bool, image: bool) -> list[str]:
+    """Right-click menu entries for what was clicked; "" marks a separator.
+
+    Built from scratch rather than filtering WebKit's menu: WebKit only offers
+    Select All for editable content, and its default entries (Reload, Back,
+    Open Link…) would bypass the viewer's own navigation handling.
+
+    Copy is always present ("copy-unavailable" = shown greyed out) and Select All
+    sits below a separator, so the menu never has a single item — GTK 4 gives
+    one-item popover menus a 46 px minimum height, leaving a visible gap.
+    """
+    entries = ["copy" if selection else "copy-unavailable"]
+    if link:
+        entries.append("copy-link")
+    if image:
+        entries += ["copy-image", "copy-image-address"]
+    return [*entries, "", "select-all"]
+
+
+def _item(label: str, action: str, display_accel: str | None = None) -> Gio.MenuItem:
+    """Menu item; *display_accel* shows a shortcut that is handled natively (not registered)."""
+    item = Gio.MenuItem.new(label, action)
+    if display_accel:
+        item.set_attribute_value("accel", GLib.Variant.new_string(display_accel))
+    return item
+
+
+def build_menu_model(recent_menu: Gio.Menu) -> Gio.Menu:
+    menu = Gio.Menu()
+
+    file_menu = Gio.Menu()
+    open_section = Gio.Menu()
+    open_section.append("_Open…", "app.open")
+    open_section.append_submenu("Open _Recent", recent_menu)
+    open_section.append("_Reload", "win.reload")
+    file_menu.append_section(None, open_section)
+    print_section = Gio.Menu()
+    print_section.append("_Print…", "win.print")
+    file_menu.append_section(None, print_section)
+    close_section = Gio.Menu()
+    close_section.append("_Close", "win.close")
+    close_section.append("_Quit", "app.quit")
+    file_menu.append_section(None, close_section)
+    menu.append_submenu("_File", file_menu)
+
+    edit_menu = Gio.Menu()
+    clipboard = Gio.Menu()
+    # Copy / Select All are handled by the web view itself; show their keys only.
+    clipboard.append_item(_item("_Copy", "win.copy", "<Control>c"))
+    clipboard.append_item(_item("Select _All", "win.select-all", "<Control>a"))
+    edit_menu.append_section(None, clipboard)
+    find_section = Gio.Menu()
+    find_section.append("_Find…", "win.find")
+    find_section.append("Find _Next", "win.find-next")
+    find_section.append("Find Pre_vious", "win.find-previous")
+    edit_menu.append_section(None, find_section)
+    menu.append_submenu("_Edit", edit_menu)
+
+    view_menu = Gio.Menu()
+    zoom = Gio.Menu()
+    zoom.append("Zoom _In", "win.zoom-in")
+    zoom.append("Zoom _Out", "win.zoom-out")
+    zoom.append("_Normal Size", "win.zoom-reset")
+    view_menu.append_section(None, zoom)
+    nav = Gio.Menu()
+    nav.append("_Back", "win.back")
+    nav.append("_Forward", "win.forward")
+    view_menu.append_section(None, nav)
+    menu.append_submenu("_View", view_menu)
+
+    help_menu = Gio.Menu()
+    help_menu.append(f"_About {APP_NAME}", "app.about")
+    menu.append_submenu("_Help", help_menu)
+    return menu

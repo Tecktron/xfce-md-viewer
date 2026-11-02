@@ -10,5 +10,10 @@
     <key name="window-maximized" type="b">
       <default>false</default>
     </key>
+    <key name="zoom-level" type="d">
+      <range min="0.3" max="5.0"/>
+      <default>1.0</default>
+      <summary>Document zoom level</summary>
+    </key>
   </schema>
 </schemalist>

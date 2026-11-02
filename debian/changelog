@@ -6,5 +6,9 @@ xfce-md-viewer (0.1.0-1) noble; urgency=low
   * Pygments syntax highlighting; GitHub (auto/light/dark, from
     github-markdown-css 5.9.0) and Plain styles; user styles.
   * Content security policy blocks scripts and network access in documents.
+  * Viewer window: background loading/rendering, auto-reload on file change
+    (keeps scroll position), local .md links open in-window with back/forward,
+    external links open in the default app, find bar, zoom (saved), print /
+    PDF export, drag-and-drop, Open Recent, trimmed context menu.
 
  -- Tecktron Studios <software@tecktron.net>  Mon, 02 Nov 2026 00:00:00 +0000
