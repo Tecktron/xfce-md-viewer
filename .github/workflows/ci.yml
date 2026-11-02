@@ -18,18 +18,23 @@ jobs:
       - name: Install ruff
         run: pip install ruff
       - name: Check style
-        run: ruff check src/ tests/
+        run: ruff check src/ tests/ tools/
       - name: Check formatting
-        run: ruff format --check src/ tests/
+        run: ruff format --check src/ tests/ tools/
 
+  # Runs on the oldest supported release with the apt-packaged runtime libraries,
+  # so tests cover the minimum versions users actually get.
   test:
-    name: Tests
+    name: Tests (Ubuntu 24.04 packages)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install system dependencies
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y python3-gi gir1.2-glib-2.0 python3-pytest
+          sudo apt-get install -y \
+            python3-gi gir1.2-glib-2.0 python3-pytest \
+            python3-markdown-it python3-mdit-py-plugins python3-markdown python3-pygments \
+            pandoc
       - name: Run tests
-        run: PYTHONPATH=src python3 -m pytest tests/ -q
+        run: /usr/bin/python3 -m pytest tests/ -q

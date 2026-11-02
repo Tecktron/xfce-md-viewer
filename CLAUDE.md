@@ -52,7 +52,8 @@ Before finalising any change, take a pass over the **whole file**:
 
 ```bash
 cd /home/craig/Projects/xfce-md-viewer
-pkill -f "md_viewer|md-viewer" 2>/dev/null; sleep 0.5
+# Anchored pattern: an unanchored one also matches (and kills) the calling shell.
+pkill -f "^/usr/bin/python3 -m md_viewer" 2>/dev/null; sleep 0.5
 # Dev source MUST come before system dist-packages. Use /usr/bin/python3 —
 # the project venv has no PyGObject.
 PYTHONPATH=src:/usr/lib/python3/dist-packages DISPLAY=:0 /usr/bin/python3 -m md_viewer.main FILE.md
@@ -64,13 +65,24 @@ not this app.
 ## Tests
 
 ```bash
-PYTHONPATH=src /usr/bin/python3 -m pytest tests/ -q
-venv/bin/ruff check src/ tests/          # ruff lives in the project venv
-venv/bin/ruff format --check src/ tests/
+venv/bin/pytest -q                       # pythonpath=src is set in pyproject.toml
+venv/bin/ruff check src/ tests/ tools/   # ruff lives in the project venv
+venv/bin/ruff format --check src/ tests/ tools/
 ```
 
 Tests are pure: no display, no network. Keep rendering logic (flavors, styles,
 HTML assembly) free of GTK so it stays unit-testable.
+
+**Python packages:** dev tools (pytest, ruff) live in `venv/` (created with
+`--system-site-packages`). Runtime deps are apt packages listed in
+`debian/control` — never pip-install them for the app. Note the venv has its
+own newer `markdown-it-py` / `Pygments` (pulled in by other tools), so local
+tests use newer libraries than users get; CI on ubuntu-24.04 with apt packages
+covers the minimum versions. To test locally against apt versions:
+`/usr/bin/python3 -m pytest -q -p no:cacheprovider`.
+
+**Minimum library versions (Ubuntu 24.04):** markdown-it-py 3.0.0,
+mdit-py-plugins 0.4.0, pandoc 3.1.3. Don't use APIs newer than these.
 
 ---
 
@@ -80,10 +92,36 @@ HTML assembly) free of GTK so it stays unit-testable.
 src/md_viewer/
   __init__.py     __version__ (single source of truth), APP_ID, APP_NAME
   main.py         MdViewerApplication; app actions open/about/quit; CLI parsing
+  flavors.py      Flavor registry (FLAVORS), render_body(text, flavor_id) → HTML fragment.
+                  Backends: markdown-it (gfm, commonmark), python-markdown (original, extra),
+                  pandoc subprocess (pandoc, commonmark_x, mmd, rmd). Raises
+                  FlavorUnavailableError / RenderError.
+  highlight.py    highlight_code_blocks(): one post-processing pass for all backends;
+                  normalises code blocks to <pre class="highlight"><code class="language-X">.
+                  Skips mermaid/math. highlight_css() = light + dark (prefers-color-scheme).
+  styles.py       discover_styles() → {id: Style}; built-ins + ~/.local/share/md-viewer/styles/
+                  (user wins on id clash); name/description from leading /* name: … */ comment.
+  document.py     build_page() / render_document(); CONTENT_SECURITY_POLICY blocks scripts
+                  and network; style CSS escaped so it can't close </style>.
+  paths.py        data_dir() (repo data/ in dev, /usr/share/xfce-md-viewer installed),
+                  builtin_styles_dir(), user_styles_dir()
   settings.py     get_settings() → Gio.Settings | None (None when schema not installed)
   ui/window.py    ViewerWindow (Gtk.ApplicationWindow); PopoverMenuBar; WebKit.WebView;
-                  window size persistence
+                  load_file() renders with defaults; window size persistence
+data/styles/      built-in styles. github.css / github-light.css / github-dark.css are
+                  GENERATED from npm github-markdown-css by tools/update_github_css.py —
+                  never hand-edit; change the script (header/LAYOUT_CSS) and re-run.
+                  plain.css is ours.
+tools/update_github_css.py
+                  stdlib-only; verifies npm sha512 integrity; --check exits 1 when outdated.
 ```
+
+## Vendored assets
+
+`.github/workflows/update-vendored.yml` runs weekly, regenerates vendored files
+when upstream has a new release and opens a PR. Needs the repo setting
+"Allow GitHub Actions to create and approve pull requests". License for vendored
+files is recorded in `debian/copyright`.
 
 ---
 
@@ -111,5 +149,7 @@ Build: `dpkg-buildpackage -us -uc` (output in `../`).
 Publishing a GitHub release triggers `.github/workflows/build-deb.yml`,
 which attaches the .deb.
 
-Runtime deps (system packages): `python3-gi`, `gir1.2-gtk-4.0`, `gir1.2-webkit-6.0`.
+Runtime deps (system packages): `python3-gi`, `gir1.2-gtk-4.0`, `gir1.2-webkit-6.0`,
+`python3-markdown-it`, `python3-mdit-py-plugins`, `python3-markdown`, `python3-pygments`.
+Recommends: `pandoc`.
 Build deps: `debhelper dh-python pybuild-plugin-pyproject python3-all python3-setuptools`.

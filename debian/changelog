@@ -1,5 +1,10 @@
 xfce-md-viewer (0.1.0-1) noble; urgency=low
 
   * Initial scaffold: GTK4 application window, packaging and CI.
+  * Rendering core: GFM, CommonMark, original Markdown and PHP Markdown Extra
+    built in; Pandoc, MultiMarkdown and R Markdown via optional pandoc.
+  * Pygments syntax highlighting; GitHub (auto/light/dark, from
+    github-markdown-css 5.9.0) and Plain styles; user styles.
+  * Content security policy blocks scripts and network access in documents.
 
  -- Tecktron Studios <software@tecktron.net>  Mon, 02 Nov 2026 00:00:00 +0000

@@ -12,10 +12,13 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("WebKit", "6.0")
-from gi.repository import Gio, Gtk, WebKit
+from gi.repository import Gio, GLib, Gtk, WebKit
 
 from .. import APP_ID, APP_NAME
+from ..document import render_document
+from ..flavors import DEFAULT_FLAVOR, FlavorUnavailableError, RenderError
 from ..settings import get_settings
+from ..styles import DEFAULT_STYLE, discover_styles
 
 _PLACEHOLDER_HTML = """<!doctype html>
 <html><head><meta charset="utf-8">
@@ -80,11 +83,27 @@ class ViewerWindow(Gtk.ApplicationWindow):
         return self._file is None
 
     def load_file(self, file: Gio.File) -> None:
-        """Load *file* into this window. Rendering arrives in a later milestone."""
+        """Read *file* and render it with the default flavor and style."""
         self._file = file
         name = file.get_basename() or file.get_uri()
         self.set_title(f"{name} — {APP_NAME}")
-        self._show_message(f"Loaded {html.escape(file.get_parse_name())}")
+        try:
+            _ok, contents, _etag = file.load_contents(None)
+        except GLib.Error as exc:
+            self._show_message(f"Cannot open {html.escape(file.get_parse_name())}: {html.escape(exc.message)}")
+            return
+        text = contents.decode("utf-8", errors="replace")
+
+        style = discover_styles().get(DEFAULT_STYLE)
+        style_css = style.read_css() if style is not None else ""
+        scheme = style.scheme if style is not None else "auto"
+        try:
+            page = render_document(text, DEFAULT_FLAVOR, style_css, name, scheme)
+        except (FlavorUnavailableError, RenderError) as exc:
+            self._show_message(f"Cannot render {html.escape(name)}: {html.escape(str(exc))}")
+            return
+        # Base URI = the file itself, so relative image paths resolve next to it.
+        self._webview.load_html(page, file.get_uri())
 
     def _show_message(self, message: str) -> None:
         self._webview.load_html(_PLACEHOLDER_HTML.format(message=message), None)

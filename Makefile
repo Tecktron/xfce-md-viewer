@@ -26,6 +26,10 @@ install:
 			$(DESTDIR)$(PREFIX)/share/icons/hicolor/$$size/apps/; \
 	done
 
+	# Built-in styles
+	install -d $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/styles
+	install -m 644 data/styles/*.css $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/styles/
+
 	# GSettings schema
 	install -d $(DESTDIR)$(PREFIX)/share/glib-2.0/schemas
 	install -m 644 data/$(APP_ID).gschema.xml $(DESTDIR)$(PREFIX)/share/glib-2.0/schemas/
@@ -48,6 +52,7 @@ uninstall:
 	for size in $(ICON_SIZES); do \
 		rm -f $(DESTDIR)$(PREFIX)/share/icons/hicolor/$$size/apps/$(APP_ID).png; \
 	done
+	rm -rf $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/
 	rm -f  $(DESTDIR)$(PREFIX)/share/glib-2.0/schemas/$(APP_ID).gschema.xml
 	rm -f  $(DESTDIR)$(PREFIX)/share/metainfo/$(APP_ID).metainfo.xml
 ifeq ($(DESTDIR),)

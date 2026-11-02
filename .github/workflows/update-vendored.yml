@@ -1,0 +1,58 @@
+name: Update vendored assets
+
+# Weekly check for new upstream releases of vendored files. When one exists,
+# regenerate them and open (or update) a pull request for review.
+# Requires repo setting: Settings → Actions → General →
+# "Allow GitHub Actions to create and approve pull requests".
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  github-markdown-css:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for a new version
+        id: check
+        run: |
+          if python3 tools/update_github_css.py --check; then
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Regenerate styles
+        if: steps.check.outputs.update == 'true'
+        id: regen
+        run: |
+          version=$(python3 tools/update_github_css.py | awk '{print $NF}')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        if: steps.check.outputs.update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.regen.outputs.version }}
+        run: |
+          branch="vendored/github-markdown-css-$VERSION"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "Branch $branch already exists; PR already open."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add data/styles/github*.css
+          git commit -m "Update github-markdown-css to $VERSION"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Update github-markdown-css to $VERSION" \
+            --body "Automated update from npm via \`tools/update_github_css.py\`. Review the rendered GitHub styles before merging, and note the update in debian/changelog at the next release."

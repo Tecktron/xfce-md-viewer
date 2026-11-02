@@ -17,8 +17,18 @@ Depends: ${python3:Depends},
          ${misc:Depends},
          python3-gi,
          gir1.2-gtk-4.0,
-         gir1.2-webkit-6.0
+         gir1.2-webkit-6.0,
+         python3-markdown-it,
+         python3-mdit-py-plugins,
+         python3-markdown,
+         python3-pygments
+Recommends: pandoc
 Description: GTK4 Markdown viewer for Xfce
  Markdown Viewer is a lightweight viewer (not an editor) for Markdown files,
  built with GTK4 and WebKitGTK for the Xfce desktop. Launch it with the
  md-viewer command or open .md files from your file manager.
+ .
+ Supports GitHub Flavored Markdown, CommonMark, original Markdown and PHP
+ Markdown Extra out of the box; with pandoc installed, also Pandoc Markdown,
+ MultiMarkdown and R Markdown. Documents are styled with CSS, and you can add
+ your own styles.

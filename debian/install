@@ -1,4 +1,5 @@
 data/net.tecktron.md_viewer.desktop         usr/share/applications/
 data/net.tecktron.md_viewer.gschema.xml     usr/share/glib-2.0/schemas/
 data/net.tecktron.md_viewer.metainfo.xml    usr/share/metainfo/
+data/styles/*.css                            usr/share/xfce-md-viewer/styles/
 data/icons/hicolor/32x32/apps/net.tecktron.md_viewer.png  usr/share/icons/hicolor/32x32/apps/
