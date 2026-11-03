@@ -7,7 +7,15 @@ from gi.repository import Gio
 
 from md_viewer.flavors import FLAVORS
 from md_viewer.styles import Style
-from md_viewer.ui.menus import build_menu_model, context_menu_entries, fill_flavor_menu, fill_style_menu
+from md_viewer.ui.menus import (
+    ACCELS,
+    SHORTCUT_HELP,
+    build_menu_model,
+    context_menu_entries,
+    fill_flavor_menu,
+    fill_style_menu,
+    shortcut_keys,
+)
 
 
 def _items(menu: Gio.Menu) -> list[tuple[str, str, str]]:
@@ -135,3 +143,29 @@ def test_view_menu_has_show_and_hide_toc_hidden_when_disabled():
     ]
     for i in range(panes.get_n_items()):
         assert panes.get_item_attribute_value(i, "hidden-when").get_string() == "action-disabled"
+
+
+def test_help_menu_items_then_about():
+    model = build_menu_model(Gio.Menu(), Gio.Menu(), Gio.Menu())
+    help_menu = model.get_item_link(3, Gio.MENU_LINK_SUBMENU)
+    first = help_menu.get_item_link(0, Gio.MENU_LINK_SECTION)
+    second = help_menu.get_item_link(1, Gio.MENU_LINK_SECTION)
+    assert [a for _, a, _ in _items(first)] == ["app.shortcuts", "app.report-problem"]
+    assert [a for _, a, _ in _items(second)] == ["app.about"]
+
+
+def test_shortcuts_window_lists_every_registered_shortcut():
+    listed = {entry for _, rows in SHORTCUT_HELP for _, entry in rows}
+    assert set(ACCELS) <= listed, set(ACCELS) - listed
+
+
+def test_shortcuts_window_only_references_registered_actions():
+    for _, rows in SHORTCUT_HELP:
+        for _, entry in rows:
+            if entry.startswith(("app.", "win.")):
+                assert entry in ACCELS, entry
+
+
+def test_shortcut_keys_drops_keypad_variants():
+    assert shortcut_keys("win.zoom-in") == ["<Control>plus", "<Control>equal"]
+    assert shortcut_keys("<Control>c") == ["<Control>c"]

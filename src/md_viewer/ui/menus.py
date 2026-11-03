@@ -12,6 +12,7 @@ from ..styles import Style
 ACCELS: dict[str, list[str]] = {
     "app.open": ["<Control>o"],
     "app.preferences": ["<Control>comma"],
+    "app.shortcuts": ["<Control>question"],
     "app.quit": ["<Control>q"],  # always works; the menu's Quit item uses app.quit-all
     "win.close": ["<Control>w"],
     "win.reload": ["F5", "<Control>r"],
@@ -26,6 +27,63 @@ ACCELS: dict[str, list[str]] = {
     "win.back": ["<Alt>Left"],
     "win.forward": ["<Alt>Right"],
 }
+
+
+# Keyboard Shortcuts window contents: (group, [(description, action or literal accelerator)]).
+# Entries starting with "app." / "win." take their keys from ACCELS; anything else is
+# a key handled natively by WebKit / GTK and is shown as written.
+SHORTCUT_HELP: list[tuple[str, list[tuple[str, str]]]] = [
+    (
+        "Files and windows",
+        [
+            ("Open a file", "app.open"),
+            ("Reload", "win.reload"),
+            ("Print or export to PDF", "win.print"),
+            ("Close window", "win.close"),
+            ("Close all windows", "app.quit"),
+        ],
+    ),
+    (
+        "Reading",
+        [
+            ("Copy", "<Control>c"),
+            ("Select all", "<Control>a"),
+            ("Find", "win.find"),
+            ("Next match", "win.find-next"),
+            ("Previous match", "win.find-previous"),
+        ],
+    ),
+    (
+        "View",
+        [
+            ("Table of contents", "win.toc"),
+            ("Zoom in", "win.zoom-in"),
+            ("Zoom out", "win.zoom-out"),
+            ("Normal size", "win.zoom-reset"),
+        ],
+    ),
+    (
+        "Navigation",
+        [
+            ("Back", "win.back"),
+            ("Forward", "win.forward"),
+        ],
+    ),
+    (
+        "Application",
+        [
+            ("Preferences", "app.preferences"),
+            ("Keyboard shortcuts", "app.shortcuts"),
+        ],
+    ),
+]
+
+
+def shortcut_keys(entry: str) -> list[str]:
+    """Accelerators to display for a SHORTCUT_HELP entry (keypad duplicates omitted)."""
+    if entry.startswith(("app.", "win.")):
+        return [accel for accel in ACCELS[entry] if "KP_" not in accel]
+    return [entry]
 
 
 def context_menu_entries(*, selection: bool, link: bool, image: bool) -> list[str]:
@@ -149,6 +207,12 @@ def build_menu_model(recent_menu: Gio.Menu, flavor_menu: Gio.Menu, style_menu: G
     menu.append_submenu("_View", view_menu)
 
     help_menu = Gio.Menu()
-    help_menu.append(f"_About {APP_NAME}", "app.about")
+    help_items = Gio.Menu()
+    help_items.append("_Keyboard Shortcuts", "app.shortcuts")
+    help_items.append("_Report a Problem", "app.report-problem")
+    help_menu.append_section(None, help_items)
+    about_section = Gio.Menu()
+    about_section.append(f"_About {APP_NAME}", "app.about")
+    help_menu.append_section(None, about_section)
     menu.append_submenu("_Help", help_menu)
     return menu

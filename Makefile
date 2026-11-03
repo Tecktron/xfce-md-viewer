@@ -3,7 +3,7 @@ DESTDIR ?=
 
 APP_ID      := net.tecktron.md_viewer
 PYTHON_DIST := $(DESTDIR)$(PREFIX)/lib/python3/dist-packages
-ICON_SIZES  := 32x32
+ICON_SIZES  := 16x16 22x22 24x24 32x32 48x48 64x64 128x128 256x256
 
 .PHONY: install uninstall
 
@@ -17,6 +17,10 @@ install:
 	install -d $(DESTDIR)$(PREFIX)/bin
 	install -m 755 bin/md-viewer $(DESTDIR)$(PREFIX)/bin/md-viewer
 
+	# Manual page
+	install -d $(DESTDIR)$(PREFIX)/share/man/man1
+	install -m 644 data/md-viewer.1 $(DESTDIR)$(PREFIX)/share/man/man1/
+
 	# Desktop integration
 	install -d $(DESTDIR)$(PREFIX)/share/applications
 	install -m 644 data/$(APP_ID).desktop $(DESTDIR)$(PREFIX)/share/applications/
@@ -25,6 +29,9 @@ install:
 		install -m 644 data/icons/hicolor/$$size/apps/$(APP_ID).png \
 			$(DESTDIR)$(PREFIX)/share/icons/hicolor/$$size/apps/; \
 	done
+	install -d $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps
+	install -m 644 data/icons/hicolor/scalable/apps/$(APP_ID).svg \
+		$(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/
 
 	# Built-in styles
 	install -d $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/styles
@@ -53,10 +60,12 @@ endif
 uninstall:
 	rm -rf $(PYTHON_DIST)/md_viewer/
 	rm -f  $(DESTDIR)$(PREFIX)/bin/md-viewer
+	rm -f  $(DESTDIR)$(PREFIX)/share/man/man1/md-viewer.1
 	rm -f  $(DESTDIR)$(PREFIX)/share/applications/$(APP_ID).desktop
 	for size in $(ICON_SIZES); do \
 		rm -f $(DESTDIR)$(PREFIX)/share/icons/hicolor/$$size/apps/$(APP_ID).png; \
 	done
+	rm -f  $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/$(APP_ID).svg
 	rm -rf $(DESTDIR)$(PREFIX)/share/xfce-md-viewer/
 	rm -f  $(DESTDIR)$(PREFIX)/share/glib-2.0/schemas/$(APP_ID).gschema.xml
 	rm -f  $(DESTDIR)$(PREFIX)/share/metainfo/$(APP_ID).metainfo.xml

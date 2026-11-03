@@ -1,6 +1,7 @@
-xfce-md-viewer (0.1.0-1) noble; urgency=low
+xfce-md-viewer (1.0.0) noble; urgency=low
 
-  * Initial scaffold: GTK4 application window, packaging and CI.
+  * Initial release.
+  * GTK4 + WebKitGTK viewer for Xfce (plain GTK, follows the system theme).
   * Rendering core: GFM, CommonMark, original Markdown and PHP Markdown Extra
     built in; Pandoc, MultiMarkdown and R Markdown via optional pandoc.
   * Pygments syntax highlighting; GitHub (auto/light/dark, from
@@ -20,5 +21,7 @@ xfce-md-viewer (0.1.0-1) noble; urgency=low
   * Table of contents sidebar (View → Show/Hide Table of Contents, F9).
   * tools/update_vendored.py and a weekly workflow keep the GitHub styles,
     KaTeX and Mermaid up to date via pull requests.
+  * Help menu: Keyboard Shortcuts window and Report a Problem.
+  * Application icon in all standard sizes plus a scalable SVG.
 
  -- Tecktron Studios <software@tecktron.net>  Mon, 02 Nov 2026 00:00:00 +0000

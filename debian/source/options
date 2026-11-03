@@ -1,0 +1,15 @@
+# Keep local development files out of the source tarball (they are git-ignored,
+# but dpkg-source packs the working directory, not the git tree).
+# A bare tar-ignore keeps dpkg-source's default VCS/backup excludes (e.g. .git);
+# listing patterns alone would replace them.
+tar-ignore
+tar-ignore = venv
+tar-ignore = .venv
+tar-ignore = .ruff_cache
+tar-ignore = .pytest_cache
+tar-ignore = .pybuild
+tar-ignore = .idea
+tar-ignore = .claude
+tar-ignore = .envrc
+tar-ignore = __pycache__
+tar-ignore = *.egg-info

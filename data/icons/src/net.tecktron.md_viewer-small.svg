@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <pattern id="chk" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#c3c7cb"/>
+      <rect width="8" height="8" fill="#00afff"/><rect x="8" y="8" width="8" height="8" fill="#00afff"/>
+    </pattern>
+  </defs>
+  <!-- outline -->
+  <rect x="8" y="32" width="248" height="192" rx="14" fill="#000"/>
+  <!-- bevelled grey frame: white highlight top/left, dark shade bottom/right -->
+  <rect x="16" y="40" width="232" height="176" rx="8" fill="#868a8e"/>
+  <rect x="16" y="40" width="224" height="168" rx="8" fill="#fff"/>
+  <rect x="24" y="48" width="216" height="160" rx="4" fill="#c3c7cb"/>
+  <rect x="32" y="56" width="192" height="136" fill="#868a8e"/>
+  <rect x="40" y="64" width="192" height="136" fill="#fff"/>
+  <!-- inner window -->
+  <rect x="40" y="64" width="184" height="128" fill="#000"/>
+  <rect x="48" y="72" width="168" height="16" fill="url(#chk)"/>
+  <rect x="48" y="96" width="168" height="88" fill="#fff"/>
+  <!-- "MD" as shapes -->
+  <path fill="#0000ff" d="M64 104h18l18 26 18-26h18v48h-16v-26l-20 26-20-26v26h-16z"/>
+  <path fill="#0000ff" fill-rule="evenodd" d="M152 104h22c18 0 28 10 28 24s-10 24-28 24h-22z M168 118v20h6c8 0 12-4 12-10s-4-10-12-10z"/>
+  <!-- underline -->
+  <rect x="64" y="160" width="136" height="8" rx="2" fill="#0000ff"/>
+</svg>

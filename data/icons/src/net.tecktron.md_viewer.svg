@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <pattern id="chk" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#c3c7cb"/>
+      <rect width="8" height="8" fill="#00afff"/><rect x="8" y="8" width="8" height="8" fill="#00afff"/>
+    </pattern>
+  </defs>
+  <!-- Large sizes (64 px+) and the scalable icon: pixel "MD". Small sizes use net.tecktron.md_viewer-small.svg. -->
+  <!-- outline -->
+  <rect x="8" y="32" width="248" height="192" rx="14" fill="#000"/>
+  <!-- bevelled grey frame: white highlight top/left, dark shade bottom/right -->
+  <rect x="16" y="40" width="232" height="176" rx="8" fill="#868a8e"/>
+  <rect x="16" y="40" width="224" height="168" rx="8" fill="#fff"/>
+  <rect x="24" y="48" width="216" height="160" rx="4" fill="#c3c7cb"/>
+  <rect x="32" y="56" width="192" height="136" fill="#868a8e"/>
+  <rect x="40" y="64" width="192" height="136" fill="#fff"/>
+  <!-- inner window -->
+  <rect x="40" y="64" width="184" height="128" fill="#000"/>
+  <rect x="48" y="72" width="168" height="16" fill="url(#chk)"/>
+  <rect x="48" y="96" width="168" height="88" fill="#fff"/>
+  <!-- "MD" in the pixel font of the original 32 px icon -->
+  <g fill="#0000ff"><rect x="64" y="104" width="16" height="8"/><rect x="128" y="104" width="16" height="8"/><rect x="152" y="104" width="40" height="8"/><rect x="64" y="112" width="24" height="8"/><rect x="120" y="112" width="24" height="8"/><rect x="152" y="112" width="16" height="8"/><rect x="184" y="112" width="16" height="8"/><rect x="64" y="120" width="32" height="8"/><rect x="112" y="120" width="32" height="8"/><rect x="152" y="120" width="16" height="8"/><rect x="184" y="120" width="16" height="8"/><rect x="64" y="128" width="16" height="8"/><rect x="88" y="128" width="32" height="8"/><rect x="128" y="128" width="16" height="8"/><rect x="152" y="128" width="16" height="8"/><rect x="184" y="128" width="16" height="8"/><rect x="64" y="136" width="16" height="8"/><rect x="96" y="136" width="16" height="8"/><rect x="128" y="136" width="16" height="8"/><rect x="152" y="136" width="16" height="8"/><rect x="184" y="136" width="16" height="8"/><rect x="64" y="144" width="16" height="8"/><rect x="128" y="144" width="16" height="8"/><rect x="152" y="144" width="40" height="8"/></g>
+  <!-- underline -->
+  <rect x="64" y="160" width="136" height="8" rx="2" fill="#0000ff"/>
+</svg>

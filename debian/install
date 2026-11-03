@@ -4,4 +4,12 @@ data/net.tecktron.md_viewer.metainfo.xml    usr/share/metainfo/
 data/styles/*.css                            usr/share/xfce-md-viewer/styles/
 data/js                                      usr/share/xfce-md-viewer/
 data/vendor                                  usr/share/xfce-md-viewer/
+data/icons/hicolor/16x16/apps/net.tecktron.md_viewer.png  usr/share/icons/hicolor/16x16/apps/
+data/icons/hicolor/22x22/apps/net.tecktron.md_viewer.png  usr/share/icons/hicolor/22x22/apps/
+data/icons/hicolor/24x24/apps/net.tecktron.md_viewer.png  usr/share/icons/hicolor/24x24/apps/
 data/icons/hicolor/32x32/apps/net.tecktron.md_viewer.png  usr/share/icons/hicolor/32x32/apps/
+data/icons/hicolor/48x48/apps/net.tecktron.md_viewer.png  usr/share/icons/hicolor/48x48/apps/
+data/icons/hicolor/64x64/apps/net.tecktron.md_viewer.png  usr/share/icons/hicolor/64x64/apps/
+data/icons/hicolor/128x128/apps/net.tecktron.md_viewer.png  usr/share/icons/hicolor/128x128/apps/
+data/icons/hicolor/256x256/apps/net.tecktron.md_viewer.png  usr/share/icons/hicolor/256x256/apps/
+data/icons/hicolor/scalable/apps/net.tecktron.md_viewer.svg  usr/share/icons/hicolor/scalable/apps/

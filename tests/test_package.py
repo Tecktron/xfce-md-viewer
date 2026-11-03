@@ -13,8 +13,9 @@ def test_version_is_semver():
 
 
 def test_changelog_matches_version():
+    # Native package (debian/source/format = 3.0 (native)): no Debian revision suffix.
     first_line = (ROOT / "debian" / "changelog").read_text().splitlines()[0]
-    assert f"({md_viewer.__version__}-" in first_line
+    assert f"({md_viewer.__version__})" in first_line
 
 
 def test_metainfo_lists_current_version():

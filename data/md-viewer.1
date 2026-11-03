@@ -1,0 +1,43 @@
+.TH MD-VIEWER 1 "November 2026" "xfce-md-viewer 1.0.0" "User Commands"
+.SH NAME
+md-viewer \- view Markdown files
+.SH SYNOPSIS
+.B md-viewer
+[\fIFILE\fR...]
+.br
+.B md-viewer
+\fB\-\-version\fR | \fB\-\-help\fR
+.SH DESCRIPTION
+.B md-viewer
+is a GTK 4 viewer (not an editor) for Markdown files, made for the Xfce desktop.
+Each \fIFILE\fR opens in its own window; if the viewer is already running, the
+files open in the running instance. The view reloads automatically when a file
+changes on disk.
+.PP
+Several Markdown flavors are supported (GitHub Flavored, CommonMark, original
+Markdown, PHP Markdown Extra, and with
+.BR pandoc (1)
+installed Pandoc Markdown, MultiMarkdown and R Markdown), along with CSS styles,
+math, Mermaid diagrams and a table of contents. Choose them from the
+.B View
+menu, and set defaults in
+.BR "Edit \(-> Preferences" .
+Documents cannot run scripts or reach the network.
+.SH OPTIONS
+.TP
+.B \-\-version
+Print the version and exit.
+.TP
+.BR \-h ", " \-\-help
+Print a short usage message and exit.
+.SH FILES
+.TP
+.I ~/.local/share/md-viewer/styles/*.css
+Your own styles. They appear in View \(-> Style and are picked up live.
+.TP
+.I /usr/share/xfce-md-viewer/styles/
+Built-in styles.
+.SH SEE ALSO
+.BR pandoc (1)
+.PP
+https://github.com/Tecktron/xfce-md-viewer

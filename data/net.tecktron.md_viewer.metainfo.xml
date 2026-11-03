@@ -8,15 +8,32 @@
   <metadata_license>FSFAP</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
 
+  <developer id="net.tecktron">
+    <name>Tecktron Studios</name>
+  </developer>
+
   <description>
     <p>
-      Markdown Viewer is a lightweight GTK4 viewer for Markdown files, built for
-      Xfce. It is a viewer, not an editor.
+      Markdown Viewer is a lightweight GTK 4 viewer for Markdown files, made for
+      the Xfce desktop. It is a viewer, not an editor: open a .md file and read it,
+      rendered the way its author intended.
     </p>
+    <p>Features:</p>
+    <ul>
+      <li>Several Markdown flavors: GitHub Flavored (default), CommonMark, original Markdown and PHP Markdown Extra, plus Pandoc Markdown, MultiMarkdown and R Markdown when pandoc is installed</li>
+      <li>CSS styles, including GitHub light and dark, and your own styles from a folder, picked up live</li>
+      <li>Math with KaTeX and Mermaid diagrams, working offline</li>
+      <li>Syntax-highlighted code blocks and a table of contents sidebar</li>
+      <li>Automatic reload when the file changes, keeping your place</li>
+      <li>Find, zoom, print and export to PDF</li>
+      <li>Links to other Markdown files open in the viewer with back and forward</li>
+      <li>Documents cannot run scripts or reach the network</li>
+    </ul>
   </description>
 
   <launchable type="desktop-id">net.tecktron.md_viewer.desktop</launchable>
 
+  <url type="homepage">https://github.com/Tecktron/xfce-md-viewer</url>
   <url type="bugtracker">https://github.com/Tecktron/xfce-md-viewer/issues</url>
   <url type="vcs-browser">https://github.com/Tecktron/xfce-md-viewer</url>
 
@@ -31,9 +48,9 @@
   </recommends>
 
   <releases>
-    <release version="0.1.0" date="2026-11-02">
+    <release version="1.0.0" date="2026-11-02">
       <description>
-        <p>Initial scaffold.</p>
+        <p>Initial release.</p>
       </description>
     </release>
   </releases>

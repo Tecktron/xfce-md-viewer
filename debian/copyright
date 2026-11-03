@@ -23,6 +23,10 @@ Copyright: 2014-2022 Knut Sveidqvist and contributors
 License: Expat
 Comment: Mermaid, vendored from npm by tools/update_vendored.py.
 
+Files: data/net.tecktron.md_viewer.metainfo.xml
+Copyright: 2026 Tecktron Studios <software@tecktron.net>
+License: FSFAP
+
 Files: debian/*
 Copyright: 2026 Tecktron Studios <software@tecktron.net>
 License: GPL-3.0-or-later
@@ -62,3 +66,8 @@ License: Expat
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
+
+License: FSFAP
+ Copying and distribution of this file, with or without modification, are
+ permitted in any medium without royalty provided the copyright notice and
+ this notice are preserved. This file is offered as-is, without any warranty.

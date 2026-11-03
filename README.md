@@ -2,8 +2,9 @@
 
 A lightweight GTK4 Markdown **viewer** (not an editor) for the Xfce desktop.
 
-> **Status:** early development (0.1.0). Core features work; release polish
-> (icons, shortcuts window, docs) is next.
+Open a `.md` file and read it, rendered the way its author intended: in the
+Markdown flavor and look of your choice, with math, diagrams and a table of
+contents. Plain GTK 4, so it follows your Xfce theme.
 
 ## Features
 
@@ -109,6 +110,7 @@ Or right-click a `.md` file in Thunar → **Open With → Markdown Viewer**.
 |---|---|
 | Ctrl+O | Open file |
 | Ctrl+, | Preferences |
+| Ctrl+? | Keyboard shortcuts (also Help → Keyboard Shortcuts) |
 | F5 / Ctrl+R | Reload |
 | Ctrl+P | Print / export to PDF |
 | Ctrl+F | Find |
@@ -145,7 +147,7 @@ the app logs a warning and carries on.
 sudo apt install debhelper dh-python pybuild-plugin-pyproject python3-all python3-setuptools
 
 dpkg-buildpackage -us -uc          # output lands in ../
-sudo apt install ../xfce-md-viewer_*.deb
+sudo apt install ../xfce-md-viewer_*_all.deb
 ```
 
 Publishing a GitHub release builds the .deb automatically and attaches it to
@@ -180,14 +182,24 @@ src/md_viewer/
   ui/window.py         ViewerWindow — WebKit view, reload, find, zoom, print
   ui/menus.py          menu bar model, flavor/style submenus, keyboard shortcuts
   ui/preferences.py    Preferences window
+  ui/shortcuts.py      Keyboard Shortcuts window (generated from ui/menus.py)
 data/                  .desktop, GSettings schema, AppStream metainfo, icons
 data/styles/           built-in CSS styles (github*.css are generated — see tools/)
+data/icons/src/        icon source SVGs (small sizes / large sizes + scalable)
 tools/                 update_vendored.py: refresh vendored GitHub CSS, KaTeX, Mermaid from npm
+                       render_icons.py: regenerate the PNG icons from data/icons/src/
 data/js/               the viewer's own page script (math/diagram rendering)
 data/vendor/           bundled KaTeX and Mermaid
 debian/                Debian packaging
 tests/                 pure unit tests (no GTK display needed)
 ```
+
+## Reporting problems
+
+Use **Help → Report a Problem**, or open an issue at
+<https://github.com/Tecktron/xfce-md-viewer/issues>. Include your Ubuntu
+release, the app version (Help → About) and, for rendering problems, the
+Markdown file plus the flavor and style you were using.
 
 ## Contributing
 

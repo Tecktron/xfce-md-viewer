@@ -21,10 +21,12 @@ from .settings import get_settings
 from .styles import Style, discover_styles
 from .ui.menus import ACCELS, build_menu_model, fill_flavor_menu, fill_style_menu
 from .ui.preferences import PreferencesWindow
+from .ui.shortcuts import ShortcutsWindow
 from .ui.window import ViewerWindow
 
 _log = logging.getLogger(__name__)
 
+ISSUES_URL = "https://github.com/Tecktron/xfce-md-viewer/issues"
 MAX_RECENT = 10
 STYLES_RESCAN_DELAY_MS = 300
 _DEFAULT_KEYS = ("default-flavor", "default-style", "allow-remote-images")
@@ -51,6 +53,7 @@ class MdViewerApplication(Gtk.Application):
         self._styles_monitor: Gio.FileMonitor | None = None
         self._styles_rescan_source = 0
         self._preferences: PreferencesWindow | None = None
+        self._shortcuts: ShortcutsWindow | None = None
 
         self.connect("activate", self._on_activate)
         self.connect("open", self._on_open)
@@ -66,6 +69,8 @@ class MdViewerApplication(Gtk.Application):
         for name, callback in (
             ("open", self._on_open_action),
             ("preferences", self._on_preferences),
+            ("shortcuts", self._on_shortcuts),
+            ("report-problem", self._on_report_problem),
             ("about", self._on_about),
             ("quit", lambda *_: self.quit()),
             ("quit-all", lambda *_: self.quit()),
@@ -221,6 +226,25 @@ class MdViewerApplication(Gtk.Application):
         self._preferences = None
         return False
 
+    def _on_shortcuts(self, *_args: object) -> None:
+        if self._shortcuts is None:
+            self._shortcuts = ShortcutsWindow(application=self)
+            self._shortcuts.connect("close-request", self._on_shortcuts_closed)
+        parent = self.get_active_window()
+        if isinstance(parent, ViewerWindow):
+            self._shortcuts.set_transient_for(parent)
+        self._shortcuts.present()
+
+    def _on_shortcuts_closed(self, _win: Gtk.Window) -> bool:
+        self._shortcuts = None
+        return False
+
+    def _on_report_problem(self, *_args: object) -> None:
+        try:
+            Gio.AppInfo.launch_default_for_uri(ISSUES_URL, None)
+        except GLib.Error:
+            _log.warning("No application to open %s", ISSUES_URL, exc_info=True)
+
     def _on_about(self, *_args: object) -> None:
         about = Gtk.AboutDialog(
             transient_for=self.get_active_window(),
@@ -230,6 +254,7 @@ class MdViewerApplication(Gtk.Application):
             version=__version__,
             comments="A Markdown viewer for Xfce with multiple flavors and CSS styles.",
             website="https://github.com/Tecktron/xfce-md-viewer",
+            website_label="Source code and issues",
             license_type=Gtk.License.GPL_3_0,
             copyright="© 2026 Tecktron Studios",
         )
