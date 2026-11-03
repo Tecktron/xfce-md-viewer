@@ -44,6 +44,12 @@ def content_security_policy(allow_remote_images: bool) -> str:
     return REMOTE_IMAGES_POLICY if allow_remote_images else CONTENT_SECURITY_POLICY
 
 
+# Structural defaults that every style (built-in or user) gets first and may override.
+# The wrapper is a <div>, not <article>: classless stylesheets such as Simple.css
+# draw every <article> as a bordered card.
+BASE_CSS = """.markdown-body .task-list-item { list-style-type: none; }
+.markdown-body .task-list-item input[type="checkbox"] { margin: 0 .35em .25em -1.4em; vertical-align: middle; }"""
+
 _TEMPLATE = """<!doctype html>
 <html>
 <head>
@@ -51,6 +57,9 @@ _TEMPLATE = """<!doctype html>
 <meta http-equiv="Content-Security-Policy" content="{csp}">
 <meta name="color-scheme" content="light dark">
 <title>{title}</title>
+<style>
+{base_css}
+</style>
 <style>
 {highlight_css}
 </style>
@@ -62,9 +71,9 @@ _TEMPLATE = """<!doctype html>
 </style>
 </head>
 <body>
-<article class="markdown-body">
+<div class="markdown-body">
 {body}
-</article>
+</div>
 </body>
 </html>
 """
@@ -91,6 +100,7 @@ def build_page(
     return _TEMPLATE.format(
         csp=content_security_policy(allow_remote_images),
         title=html.escape(title),
+        base_css=BASE_CSS,
         highlight_css=highlight_css(scheme),
         extra_css=katex_css() if include_katex_css else "",
         # A user style containing "</style" must not be able to close the element early.

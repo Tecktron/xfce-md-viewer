@@ -21,7 +21,7 @@
     <p>Features:</p>
     <ul>
       <li>Several Markdown flavors: GitHub Flavored (default), CommonMark, original Markdown and PHP Markdown Extra, plus Pandoc Markdown, MultiMarkdown and R Markdown when pandoc is installed</li>
-      <li>CSS styles, including GitHub light and dark, and your own styles from a folder, picked up live</li>
+      <li>Eight built-in styles (GitHub light, dark and high contrast, Water, Simple, LaTeX and Plain) plus your own CSS styles from a folder, picked up live</li>
       <li>Math with KaTeX and Mermaid diagrams, working offline</li>
       <li>Syntax-highlighted code blocks and a table of contents sidebar</li>
       <li>Automatic reload when the file changes, keeping your place</li>

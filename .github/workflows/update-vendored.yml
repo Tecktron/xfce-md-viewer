@@ -1,17 +1,18 @@
 name: Update vendored assets
 
-# Weekly check for new upstream releases of vendored packages (GitHub CSS,
-# KaTeX, Mermaid). For each package with a new version, regenerate its files and
-# open a pull request for review.
+# Monthly check for new upstream releases of vendored packages (GitHub CSS,
+# Water.css, Simple.css, LaTeX.css, KaTeX, Mermaid). For each package with a new version, regenerate its files and
+# open a pull request for review and start CI on it.
 # Requires repo setting: Settings → Actions → General →
 # "Allow GitHub Actions to create and approve pull requests".
 
 on:
   schedule:
-    - cron: "17 6 * * 1"   # Mondays 06:17 UTC
+    - cron: "0 15 15 * *"   # 15th of each month, 15:00 UTC
   workflow_dispatch:
 
 permissions:
+  actions: write        # start ci.yml on the new branch
   contents: write
   pull-requests: write
 
@@ -21,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [github-markdown-css, katex, mermaid]
+        package: [github-markdown-css, water.css, simpledotcss, latex.css, katex, mermaid]
     steps:
       - uses: actions/checkout@v4
 
@@ -62,3 +63,6 @@ jobs:
           gh pr create --base main --head "$branch" \
             --title "Update $PACKAGE to $VERSION" \
             --body "Automated update from npm via \`tools/update_vendored.py\`. Check rendering with the affected package before merging, and note the update in debian/changelog at the next release."
+          # A PR opened with GITHUB_TOKEN doesn't trigger ci.yml's pull_request
+          # event, so start CI on the branch explicitly.
+          gh workflow run ci.yml --ref "$branch"

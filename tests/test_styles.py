@@ -1,7 +1,7 @@
 """Style discovery: built-in + user dirs, header parsing, overrides."""
 
 from md_viewer import styles
-from md_viewer.paths import builtin_styles_dir
+from md_viewer.paths import builtin_styles_dir, vendor_dir
 from md_viewer.styles import discover_styles, resolve_style
 
 
@@ -101,3 +101,24 @@ def test_resolve_style_falls_back_to_default_then_any(tmp_path):
     del found["github"]
     assert resolve_style(found, "nope").id == "plain"
     assert resolve_style({}, "nope") is None
+
+
+def test_vendor_urls_resolved(tmp_path):
+    _write(tmp_path / "b" / "f.css", "@font-face { src: url('md-viewer-vendor:/pkg/fonts/a.woff2'); }")
+    css = discover_styles(tmp_path / "b", tmp_path / "u")["f"].read_css()
+    assert "md-viewer-vendor:" not in css
+    assert f"url('{(vendor_dir() / 'pkg' / 'fonts' / 'a.woff2').as_uri()}')" in css
+
+
+def test_bundled_styles_all_present(tmp_path):
+    found = discover_styles(builtin_styles_dir(), tmp_path / "u")
+    assert set(found) == {
+        "github",
+        "github-light",
+        "github-dark",
+        "github-dark-high-contrast",
+        "plain",
+        "water",
+        "simple",
+        "latex",
+    }

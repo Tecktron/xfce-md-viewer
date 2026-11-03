@@ -3,6 +3,9 @@
 
 Packages:
     github-markdown-css  -> data/styles/github*.css   (generated: header + upstream CSS + layout)
+    water.css            -> data/styles/water.css
+    simpledotcss         -> data/styles/simple.css    (Simple.css; NOT the unrelated npm "simple.css")
+    latex.css            -> data/styles/latex.css + data/vendor/latex.css/fonts/ (Latin Modern woff2)
     katex                -> data/vendor/katex/         (katex.min.js, katex.min.css, fonts/*.woff2)
     mermaid              -> data/vendor/mermaid/       (mermaid.min.js)
 
@@ -23,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import functools
 import hashlib
 import io
 import json
@@ -32,6 +36,7 @@ import sys
 import tarfile
 import urllib.request
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 REGISTRY = "https://registry.npmjs.org"
@@ -84,26 +89,19 @@ def _license_text(tar: tarfile.TarFile) -> bytes:
 
 
 # ----------------------------------------------------------------------
-# github-markdown-css
+# CSS style packages -> data/styles/<stem>.css (+ fonts in data/vendor/<package>/)
 # ----------------------------------------------------------------------
 
-GITHUB_VERSION_RE = re.compile(r"upstream: github-markdown-css (\S+)")
+# Style CSS is inlined into each page, so relative font URLs would resolve against
+# the Markdown file. Vendored styles use this prefix instead; styles.Style.read_css()
+# replaces it with the installed data/vendor/ URL.
+VENDOR_URL_PREFIX = "md-viewer-vendor:/"
 
-# output file stem -> (upstream file, display name, description, scheme)
-GITHUB_VARIANTS: dict[str, tuple[str, str, str, str]] = {
-    "github": (
-        "github-markdown.css",
-        "GitHub",
-        "GitHub's Markdown look; follows the system light/dark setting",
-        "auto",
-    ),
-    "github-light": ("github-markdown-light.css", "GitHub Light", "GitHub's Markdown look, always light", "light"),
-    "github-dark": ("github-markdown-dark.css", "GitHub Dark", "GitHub's Markdown look, always dark", "dark"),
-}
+LAYOUT_HEADER = "\n/* ---- xfce-md-viewer layout (not part of upstream) ---- */\n"
 
-GITHUB_LAYOUT_CSS = """
-/* ---- xfce-md-viewer layout (not part of upstream) ---- */
-html, body {
+GITHUB_LAYOUT_CSS = (
+    LAYOUT_HEADER
+    + """html, body {
   margin: 0;
   padding: 0;
 }
@@ -113,28 +111,158 @@ html, body {
   padding: 32px max(16px, calc((100% - 980px) / 2));
 }
 """
+)
 
 
-def _github_current() -> str | None:
-    path = STYLES_DIR / "github.css"
+@dataclass(frozen=True)
+class StyleSpec:
+    stem: str  # output file data/styles/<stem>.css (= style id)
+    upstream_file: str  # path inside the npm package
+    name: str
+    description: str
+    scheme: str  # light | dark | auto
+    layout: str = ""
+    removals: tuple[str, ...] = ()  # regexes; each must match at least once
+    rewrites: tuple[tuple[str, str], ...] = ()  # literal (old, new); each old must be present
+
+
+@dataclass(frozen=True)
+class StylePackage:
+    author: str
+    homepage: str
+    styles: tuple[StyleSpec, ...]
+    fonts: tuple[str, ...] = ()  # package paths copied to data/vendor/<package>/fonts/
+
+
+STYLE_PACKAGES: dict[str, StylePackage] = {
+    "github-markdown-css": StylePackage(
+        "Sindre Sorhus",
+        "https://github.com/sindresorhus/github-markdown-css",
+        (
+            StyleSpec(
+                "github",
+                "github-markdown.css",
+                "GitHub",
+                "GitHub's Markdown look; follows the system light/dark setting",
+                "auto",
+                GITHUB_LAYOUT_CSS,
+            ),
+            StyleSpec(
+                "github-light",
+                "github-markdown-light.css",
+                "GitHub Light",
+                "GitHub's Markdown look, always light",
+                "light",
+                GITHUB_LAYOUT_CSS,
+            ),
+            StyleSpec(
+                "github-dark",
+                "github-markdown-dark.css",
+                "GitHub Dark",
+                "GitHub's Markdown look, always dark",
+                "dark",
+                GITHUB_LAYOUT_CSS,
+            ),
+            StyleSpec(
+                "github-dark-high-contrast",
+                "github-markdown-dark-high-contrast.css",
+                "GitHub Dark High Contrast",
+                "GitHub's high-contrast dark look, for low vision",
+                "dark",
+                GITHUB_LAYOUT_CSS,
+            ),
+        ),
+    ),
+    "water.css": StylePackage(
+        "Kognise",
+        "https://github.com/kognise/water.css",
+        (
+            StyleSpec(
+                "water",
+                "out/water.css",
+                "Water",
+                "Clean and minimal (Water.css); follows the system light/dark setting",
+                "auto",
+            ),
+        ),
+    ),
+    "simpledotcss": StylePackage(
+        "Kev Quirk",
+        "https://github.com/kevquirk/simple.css",
+        (
+            StyleSpec(
+                "simple",
+                "simple.css",
+                "Simple",
+                "Readable and classless (Simple.css); follows the system light/dark setting",
+                "auto",
+            ),
+        ),
+    ),
+    "latex.css": StylePackage(
+        "Vincent Dörig",
+        "https://github.com/vincentdoerig/latex-css",
+        (
+            StyleSpec(
+                "latex",
+                "style.css",
+                "LaTeX",
+                "Looks like a LaTeX document (LaTeX.css); follows the system light/dark setting",
+                "auto",
+                # Libertinus is opt-in upstream (body.libertinus) and not bundled.
+                removals=(r"@font-face\s*\{[^}]*Libertinus[^}]*\}",),
+                rewrites=(
+                    ("./fonts/", f"{VENDOR_URL_PREFIX}latex.css/fonts/"),
+                    # Upstream's automatic dark mode needs <body class="latex-dark-auto">;
+                    # our page has no body class, so apply it to body directly.
+                    (".latex-dark-auto {", "body {"),
+                ),
+            ),
+        ),
+        fonts=tuple(f"fonts/LM-{w}.woff2" for w in ("regular", "italic", "bold", "bold-italic")),
+    ),
+}
+
+
+def _style_current(package: str) -> str | None:
+    path = STYLES_DIR / f"{STYLE_PACKAGES[package].styles[0].stem}.css"
     if not path.is_file():
         return None
-    match = GITHUB_VERSION_RE.search(path.read_text(encoding="utf-8"))
+    match = re.search(rf"upstream: {re.escape(package)} (\S+)", path.read_text(encoding="utf-8"))
     return match.group(1) if match else None
 
 
-def _github_install(tar: tarfile.TarFile, meta: dict) -> None:
-    for stem, (upstream_file, name, description, scheme) in GITHUB_VARIANTS.items():
-        css = _read(tar, upstream_file).decode("utf-8")
+def _transform(spec: StyleSpec, css: str) -> str:
+    for pattern in spec.removals:
+        css, count = re.subn(pattern, "", css, flags=re.DOTALL)
+        if not count:
+            raise ValueError(f"{spec.stem}: removal pattern no longer matches upstream: {pattern}")
+    for old, new in spec.rewrites:
+        if old not in css:
+            raise ValueError(f"{spec.stem}: expected text no longer in upstream CSS: {old!r}")
+        css = css.replace(old, new)
+    return css
+
+
+def _style_install(package: str, tar: tarfile.TarFile, meta: dict) -> None:
+    pkg = STYLE_PACKAGES[package]
+    for spec in pkg.styles:
+        css = _transform(spec, _read(tar, spec.upstream_file).decode("utf-8"))
         header = (
-            f"/* name: {name}\n"
-            f"   description: {description}\n"
-            f"   scheme: {scheme}\n"
-            f"   upstream: github-markdown-css {meta['version']} ({meta.get('license', 'MIT')}, Sindre Sorhus, "
-            "https://github.com/sindresorhus/github-markdown-css)\n"
+            f"/* name: {spec.name}\n"
+            f"   description: {spec.description}\n"
+            f"   scheme: {spec.scheme}\n"
+            f"   upstream: {package} {meta['version']} ({meta.get('license', 'MIT')}, {pkg.author}, {pkg.homepage})\n"
             "   Generated by tools/update_vendored.py — do not edit by hand. */\n\n"
         )
-        (STYLES_DIR / f"{stem}.css").write_text(header + css.rstrip() + "\n" + GITHUB_LAYOUT_CSS, encoding="utf-8")
+        (STYLES_DIR / f"{spec.stem}.css").write_text(header + css.rstrip() + "\n" + spec.layout, encoding="utf-8")
+    if pkg.fonts:
+        target = _fresh_vendor_dir(package)
+        (target / "fonts").mkdir()
+        for font in pkg.fonts:
+            (target / "fonts" / PurePosixPath(font).name).write_bytes(_read(tar, font))
+        (target / "LICENSE").write_bytes(_license_text(tar))
+        (target / "VERSION").write_text(meta["version"] + "\n", encoding="utf-8")
 
 
 # ----------------------------------------------------------------------
@@ -179,7 +307,10 @@ def _mermaid_install(tar: tarfile.TarFile, meta: dict) -> None:
 
 # package -> (current-version reader, installer)
 PACKAGES: dict[str, tuple[Callable[[], str | None], Callable[[tarfile.TarFile, dict], None]]] = {
-    "github-markdown-css": (_github_current, _github_install),
+    **{
+        name: (functools.partial(_style_current, name), functools.partial(_style_install, name))
+        for name in STYLE_PACKAGES
+    },
     "katex": (lambda: _vendor_current("katex"), _katex_install),
     "mermaid": (lambda: _vendor_current("mermaid"), _mermaid_install),
 }

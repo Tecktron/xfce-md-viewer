@@ -20,11 +20,14 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .paths import builtin_styles_dir, user_styles_dir
+from .paths import builtin_styles_dir, user_styles_dir, vendor_dir
 
 _log = logging.getLogger(__name__)
 
 DEFAULT_STYLE = "github"
+# Vendored styles reference their fonts as md-viewer-vendor:/<package>/... because the
+# CSS is inlined into the page (relative URLs would resolve against the .md file).
+VENDOR_URL_PREFIX = "md-viewer-vendor:/"
 SCHEMES = ("auto", "light", "dark")
 
 _HEADER_RE = re.compile(r"\A\s*/\*(.*?)\*/", re.DOTALL)
@@ -41,7 +44,8 @@ class Style:
     builtin: bool
 
     def read_css(self) -> str:
-        return self.path.read_text(encoding="utf-8", errors="replace")
+        css = self.path.read_text(encoding="utf-8", errors="replace")
+        return css.replace(VENDOR_URL_PREFIX, vendor_dir().as_uri() + "/")
 
 
 def _parse_header(css: str) -> dict[str, str]:

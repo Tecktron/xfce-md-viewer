@@ -6,7 +6,8 @@ from md_viewer.document import CONTENT_SECURITY_POLICY, REMOTE_IMAGES_POLICY, bu
 def test_page_structure():
     page = build_page("<p>hi</p>", "body{color:red}", "Doc")
     assert page.startswith("<!doctype html>")
-    assert '<article class="markdown-body">\n<p>hi</p>' in page
+    assert '<div class="markdown-body">\n<p>hi</p>' in page
+    assert "<article" not in page  # classless styles (Simple.css) draw <article> as a card
     assert "body{color:red}" in page
     assert "<title>Doc</title>" in page
 
@@ -75,3 +76,9 @@ def test_remote_images_opt_in():
 def test_remote_policy_still_blocks_scripts():
     assert "default-src 'none'" in REMOTE_IMAGES_POLICY
     assert "script-src" not in REMOTE_IMAGES_POLICY
+
+
+def test_base_css_comes_before_style_css():
+    page = build_page("", "MY-STYLE{}", "t")
+    assert "task-list-item" in page
+    assert page.index("task-list-item") < page.index("MY-STYLE")

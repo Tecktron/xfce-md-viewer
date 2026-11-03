@@ -11,9 +11,15 @@ contents. Plain GTK 4, so it follows your Xfce theme.
 - Multiple Markdown flavors: GitHub Flavored (default), CommonMark, original
   Markdown.pl, PHP Markdown Extra — plus Pandoc Markdown, MultiMarkdown and
   R Markdown when `pandoc` is installed
-- CSS styles: GitHub (auto/light/dark, from
-  [github-markdown-css](https://github.com/sindresorhus/github-markdown-css)),
-  Plain, and your own: drop a `.css` file into `~/.local/share/md-viewer/styles/`
+- Eight built-in CSS styles, plus your own (drop a `.css` file into
+  `~/.local/share/md-viewer/styles/`):
+  - **GitHub**, **GitHub Light**, **GitHub Dark** and **GitHub Dark High Contrast**
+    ([github-markdown-css](https://github.com/sindresorhus/github-markdown-css))
+  - **Water** ([Water.css](https://github.com/kognise/water.css)) and
+    **Simple** ([Simple.css](https://github.com/kevquirk/simple.css)): clean, minimal
+  - **LaTeX** ([LaTeX.css](https://github.com/vincentdoerig/latex-css)): looks like a
+    LaTeX paper, with Latin Modern fonts
+  - **Plain**: minimal, uses your system fonts
 - Switch flavor and style per window from the **View** menu; choose your
   defaults in **Edit → Preferences**
 - Auto-reload when the file changes on disk
@@ -77,7 +83,8 @@ edits re-render open documents live. Start it with a header:
 
 `scheme` is `light`, `dark` or `auto` (follow the system) and picks matching
 code-highlighting colours. Rendered Markdown sits inside
-`<article class="markdown-body">`; code blocks are
+`<div class="markdown-body">` (a `<div>`, so classless stylesheets that style
+`<article>` as a card don't); code blocks are
 `<pre class="highlight"><code class="language-…">`. A user style with the same
 file name as a built-in one replaces it.
 
@@ -186,10 +193,10 @@ src/md_viewer/
 data/                  .desktop, GSettings schema, AppStream metainfo, icons
 data/styles/           built-in CSS styles (github*.css are generated — see tools/)
 data/icons/src/        icon source SVGs (small sizes / large sizes + scalable)
-tools/                 update_vendored.py: refresh vendored GitHub CSS, KaTeX, Mermaid from npm
+tools/                 update_vendored.py: refresh vendored styles, KaTeX, Mermaid from npm
                        render_icons.py: regenerate the PNG icons from data/icons/src/
 data/js/               the viewer's own page script (math/diagram rendering)
-data/vendor/           bundled KaTeX and Mermaid
+data/vendor/           bundled KaTeX, Mermaid and the LaTeX style's fonts
 debian/                Debian packaging
 tests/                 pure unit tests (no GTK display needed)
 ```
