@@ -18,8 +18,8 @@ Tests are pure (no GTK display, no network) and must all pass.
 ## Lint and format
 
 ```bash
-venv/bin/ruff check src/ tests/
-venv/bin/ruff format src/ tests/
+venv/bin/ruff check src/ tests/ tools/
+venv/bin/ruff format src/ tests/ tools/
 ```
 
 ## Git hook

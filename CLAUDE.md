@@ -302,7 +302,7 @@ which attaches the .deb.
 
 **PPA (`tools/ppa-release.sh`, steps in CONTRIBUTING.md "Releasing"):** checks
 (main, clean tree, versions agree, noble + Tecktron maintainer, GPG key, ruff,
-tests on system Python) → stamps TODAY's date into the top changelog trailer and
+tests on system Python, appstreamcli + desktop-file-validate) → stamps TODAY's date into the top changelog trailer and
 the metainfo `<release>` (Craig's choice: release date = day of the run) →
 commits "Release X.Y.Z" + annotated tag (reused if already on HEAD; another
 commit → abort) → `git archive HEAD` into `build/ppa/` → `debuild -S -sa` →

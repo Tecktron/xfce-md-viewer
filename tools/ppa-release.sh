@@ -67,6 +67,11 @@ venv/bin/ruff check -q src/ tests/ tools/
 venv/bin/ruff format --check -q src/ tests/ tools/
 /usr/bin/python3 -m pytest -q -p no:cacheprovider
 
+step "Metadata"
+appstreamcli validate --no-net "$METAINFO"
+desktop-file-validate data/net.tecktron.md_viewer.desktop
+echo "desktop file OK"
+
 # --- Stamp the release date, commit, tag --------------------------------------
 if [ "$DRY_RUN" -eq 0 ] && [ -z "$TAG_COMMIT" ]; then
     step "Stamping today's date, committing and tagging $VERSION"
