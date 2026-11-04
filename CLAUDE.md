@@ -143,6 +143,8 @@ tools/update_vendored.py
                   stdlib-only; packages github-markdown-css, katex, mermaid; verifies npm
                   sha512 integrity; reads only named tar members; --check [PKG] exits 1
                   when outdated; `update_vendored.py PKG VERSION` pins a version.
+tools/ppa-release.sh
+                  stamp date, commit, tag, signed source build, lintian, dput (see Releasing).
 ```
 
 ## Vendored assets
@@ -283,7 +285,8 @@ The version lives in three places, kept in sync by `tests/test_package.py`:
 **Versioning:** this is a *native* Debian package (`debian/source/format` =
 `3.0 (native)`): the changelog version is the plain app version, e.g. `1.0.0`,
 never `1.0.0-1` (lintian error `malformed-debian-changelog-version`). For PPA
-rebuilds of the same release per Ubuntu series, append e.g. `~noble1`.
+rebuilds of the same release, append e.g. `~noble1` (normal releases don't:
+other series get Launchpad copies).
 (repoman uses `-1` without a declared format; that's a historical accident, not a
 convention to copy.) `debian/source/options` keeps venv/caches out of the source
 tarball — dpkg-source packs the working directory, not the git tree.
@@ -296,6 +299,25 @@ pedantic notes about the vendored minified JS / restated default fields).
 Build: `dpkg-buildpackage -us -uc` (output in `../`).
 Publishing a GitHub release triggers `.github/workflows/build-deb.yml`,
 which attaches the .deb.
+
+**PPA (`tools/ppa-release.sh`, steps in CONTRIBUTING.md "Releasing"):** checks
+(main, clean tree, versions agree, noble + Tecktron maintainer, GPG key, ruff,
+tests on system Python) → stamps TODAY's date into the top changelog trailer and
+the metainfo `<release>` (Craig's choice: release date = day of the run) →
+commits "Release X.Y.Z" + annotated tag (reused if already on HEAD; another
+commit → abort) → `git archive HEAD` into `build/ppa/` → `debuild -S -sa` →
+`lintian --pedantic` (fails on E:) → y/N → `dput`. Uploads noble only; the other
+series (resolute, stonking) are copied on Launchpad ("Copy packages", same
+version, existing binaries), so no `~series` suffixes. The script never pushes.
+`--dry-run`: unsigned build + lintian, no stamp/commit/tag/upload.
+Changelog maintainer MUST be `Tecktron Studios <software@tecktron.net>` (the
+signing key's identity; a personal address broke repoman's signing).
+Never suggest deleting/recreating pushed tags or releases (may be protected).
+
+**Pre-commit hook:** Craig's own ruff-git-commit-hook
+(`~/Projects/ruff-git-commit-hook`, `install.sh -w` = hook only), which auto-formats,
+auto-fixes and re-stages. Don't write a project-specific hook; version agreement
+is covered by `tests/test_package.py`.
 
 Runtime deps (system packages): `python3-gi`, `gir1.2-gtk-4.0`, `gir1.2-webkit-6.0`,
 `python3-markdown-it`, `python3-mdit-py-plugins`, `python3-markdown`, `python3-pygments`.

@@ -22,6 +22,18 @@ venv/bin/ruff check src/ tests/
 venv/bin/ruff format src/ tests/
 ```
 
+## Git hook
+
+Maintainers use [ruff-git-commit-hook](https://github.com/Tecktron/ruff-git-commit-hook)
+(hook only, keeping this project's ruff config):
+
+```bash
+bash ~/Projects/ruff-git-commit-hook/install.sh -w ~/Projects/xfce-md-viewer
+```
+
+Version agreement between the three version files is enforced by
+`tests/test_package.py`, which CI and `tools/ppa-release.sh` run.
+
 ## Code conventions
 
 See [CLAUDE.md](CLAUDE.md) for the full coding guide.
@@ -55,3 +67,31 @@ Open an issue at <https://github.com/Tecktron/xfce-md-viewer/issues> with your
 Ubuntu/Xubuntu release, the app version (Help → About) and steps to reproduce.
 If it's a rendering issue, attach the Markdown file and say which flavor/style
 you were using.
+
+## Releasing (maintainers)
+
+Releases go to [ppa:tecktron-studios/xfce-md-viewer](https://launchpad.net/~tecktron-studios/+archive/ubuntu/xfce-md-viewer)
+and to GitHub releases.
+
+1. **Bump the version** in all three places, in one commit on `main`:
+   `src/md_viewer/__init__.py`, a new top entry in `debian/changelog` (series
+   `noble`, maintainer `Tecktron Studios <software@tecktron.net>` — copy the
+   previous entry's trailer line), and a new `<release>` at the top of
+   `data/net.tecktron.md_viewer.metainfo.xml`. The dates don't matter yet.
+2. **Try it:** `tools/ppa-release.sh --dry-run` runs the checks, builds an
+   unsigned source package from `HEAD` in `build/ppa/` and runs lintian.
+   Nothing in the repo changes.
+3. **Release:** `tools/ppa-release.sh` runs the same checks, stamps today's date
+   into the changelog and metainfo, commits "Release X.Y.Z", tags `X.Y.Z`,
+   builds and signs the source package (GPG key for `software@tecktron.net`),
+   runs lintian and asks before uploading with `dput`. If the upload fails or
+   you answer no, run it again: a tag already on `HEAD` is reused.
+4. **Push:** `git push origin main && git push origin X.Y.Z`.
+5. **GitHub release:** publish a release for tag `X.Y.Z`;
+   `.github/workflows/build-deb.yml` attaches the `.deb`.
+6. **Other series:** when the noble build on Launchpad succeeds, use
+   *Copy packages* on the PPA page to copy it to the other supported series
+   (currently resolute and stonking) with "Copy existing binaries".
+
+Never delete and recreate a pushed tag or release to re-run a workflow (tags may
+be protected); use `gh run rerun` or the workflow's *Run workflow* button.
