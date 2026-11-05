@@ -38,6 +38,19 @@ contents. Plain GTK 4, so it follows your Xfce theme.
 
 ## Installation
 
+### From the PPA (recommended)
+
+```bash
+sudo add-apt-repository ppa:tecktron-studios/xfce-md-viewer
+sudo apt update
+sudo apt install xfce-md-viewer
+```
+
+You get updates with the rest of your system. Supported Ubuntu releases:
+Noble (24.04 LTS), Resolute (26.04 LTS) and Stonking (26.10). Install `pandoc`
+too if you want the Pandoc, MultiMarkdown and R Markdown flavors (apt installs
+it by default as a recommended package).
+
 ### From a .deb package
 
 Download the latest `.deb` from the
