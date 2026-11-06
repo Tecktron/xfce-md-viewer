@@ -6,6 +6,8 @@ Open a `.md` file and read it, rendered the way its author intended: in the
 Markdown flavor and look of your choice, with math, diagrams and a table of
 contents. Plain GTK 4, so it follows your Xfce theme.
 
+![Markdown Viewer showing a document with its table of contents](Screenshot.png)
+
 ## Features
 
 - Multiple Markdown flavors: GitHub Flavored (default), CommonMark, original
