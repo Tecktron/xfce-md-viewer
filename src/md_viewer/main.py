@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -17,6 +18,7 @@ from . import APP_ID, APP_NAME, __version__
 from .flavors import pandoc_available
 from .links import MARKDOWN_EXTENSIONS, is_markdown_uri
 from .paths import user_styles_dir
+from .renderer import prefer_gl_renderer
 from .settings import get_settings
 from .styles import Style, discover_styles
 from .ui.menus import ACCELS, build_menu_model, fill_flavor_menu, fill_style_menu
@@ -259,6 +261,12 @@ class MdViewerApplication(Gtk.Application):
             copyright="© 2026 Tecktron Studios",
         )
         about.present()
+        # GTK focuses the first focusable widget, the selectable program-name
+        # label, and focusing a label selects (highlights) all of its text.
+        focus = about.get_focus()
+        if isinstance(focus, Gtk.Label):
+            focus.select_region(0, 0)
+            about.set_focus(None)
 
 
 def main() -> None:
@@ -267,6 +275,7 @@ def main() -> None:
     parser.add_argument("files", nargs="*", metavar="FILE", help="Markdown file(s) to open")
     # Unknown args (e.g. --display) are passed through to GTK.
     args, remaining = parser.parse_known_args()
+    prefer_gl_renderer(os.environ, (Gtk.get_major_version(), Gtk.get_minor_version()))
     app = MdViewerApplication()
     sys.exit(app.run([sys.argv[0], *remaining, *args.files]))
 

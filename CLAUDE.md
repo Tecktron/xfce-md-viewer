@@ -106,6 +106,8 @@ src/md_viewer/
   paths.py        data_dir() (repo data/ in dev, /usr/share/xfce-md-viewer installed),
                   builtin_styles_dir(), user_styles_dir()
   settings.py     get_settings() → Gio.Settings | None (None when schema not installed)
+  renderer.py     prefer_gl_renderer(environ, gtk_version): GTK-free; main() calls it before
+                  the app starts. See "Theming notes" for why.
   links.py        classify_link(target, current) → LinkAction (ALLOW in-page anchor,
                   OPEN_DOCUMENT local .md, OPEN_EXTERNAL file/web/mail, BLOCK other schemes)
   history.py      History — browser-style back/forward list of file URIs
@@ -261,6 +263,18 @@ GTK 4 has no classic menus; all menus are popovers styled by the theme's
 `gtk-4.0/gtk.css`. Greybird's GTK 4 port is partial (the `Theme parser error`
 warnings), so menus won't match GTK 3 apps exactly. Accepted for now. repoman
 can't help here: it uses libadwaita, which ignores the system theme.
+
+**Renderer:** `main()` sets `GSK_RENDERER` to GTK's OpenGL renderer unless the user
+set it: `gl` on GTK ≥ 4.19, `ngl` before (4.19 renamed it; on 4.14 `gl` is the OLD
+renderer). Reason: in a VM without 3D (KVM virtio-gpu, Ubuntu 26.04, GTK 4.22, Mesa
+26.0) GTK picked Vulkan = software lavapipe, which segfaulted in `libvulkan_lvp.so`;
+software OpenGL (llvmpipe) is stable. GTK reads the variable when it creates the
+first renderer, so setting it after `import Gtk` but before any window works
+(verified).
+
+**About window:** GTK focuses the selectable program-name label on open, which
+selects (highlights) it; `_on_about` clears that selection and the focus right after
+`present()` (focus is assigned synchronously there).
 
 ## Window management
 
