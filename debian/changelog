@@ -5,7 +5,7 @@ xfce-md-viewer (1.0.1) noble; urgency=low
     Mesa's software lavapipe driver, segfaulted).
   * The About window no longer opens with the program name selected.
 
- -- Tecktron Studios <software@tecktron.net>  Fri, 06 Nov 2026 09:29:02 -0500
+ -- Tecktron Studios <software@tecktron.net>  Fri, 06 Nov 2026 09:32:11 -0500
 
 xfce-md-viewer (1.0.0) noble; urgency=low
 
