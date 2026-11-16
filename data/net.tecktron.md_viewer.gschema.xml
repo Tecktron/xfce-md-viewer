@@ -23,6 +23,19 @@
       <summary>Load images and media from the web</summary>
       <description>Scripts are always blocked; this only allows http/https images and media.</description>
     </key>
+    <key name="highlight-use-default" type="b">
+      <default>true</default>
+      <summary>Use the default syntax-highlighting colours</summary>
+      <description>When false, highlight-light-theme and highlight-dark-theme are used, and they also set the code block background.</description>
+    </key>
+    <key name="highlight-light-theme" type="s">
+      <default>"default"</default>
+      <summary>Pygments theme for code on light pages</summary>
+    </key>
+    <key name="highlight-dark-theme" type="s">
+      <default>"github-dark"</default>
+      <summary>Pygments theme for code on dark pages</summary>
+    </key>
     <key name="show-toc" type="b">
       <default>false</default>
       <summary>Show the table of contents sidebar in new windows</summary>

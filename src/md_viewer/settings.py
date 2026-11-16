@@ -12,6 +12,7 @@ import logging
 from gi.repository import Gio
 
 from . import APP_ID
+from .highlight import Themes
 
 _log = logging.getLogger(__name__)
 _settings: Gio.Settings | None = None
@@ -29,3 +30,11 @@ def get_settings() -> Gio.Settings | None:
         else:
             _log.warning("GSettings schema %s not installed; settings will not be saved", APP_ID)
     return _settings
+
+
+def highlight_themes() -> Themes:
+    """The syntax-highlighting themes to use: the defaults unless the user picked their own."""
+    settings = get_settings()
+    if settings is None or settings.get_boolean("highlight-use-default"):
+        return Themes()
+    return Themes.chosen(settings.get_string("highlight-light-theme"), settings.get_string("highlight-dark-theme"))

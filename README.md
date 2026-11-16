@@ -27,6 +27,10 @@ contents. Plain GTK 4, so it follows your Xfce theme.
 - Auto-reload when the file changes on disk
 - Syntax-highlighted code blocks, math (KaTeX) and Mermaid diagrams
 - Table of contents sidebar (View → Show Table of Contents, or F9)
+- View the Markdown source, highlighted (View → Show Source, or Ctrl+U) — select
+  and copy the original Markdown from there
+- Choose the syntax-highlighting colours (Preferences → Highlighting, with a
+  live preview)
 - Find, zoom, print / export to PDF
 - Opens `.md` files from Thunar and other file managers
 
@@ -96,8 +100,8 @@ edits re-render open documents live. Start it with a header:
    scheme: auto */
 ```
 
-`scheme` is `light`, `dark` or `auto` (follow the system) and picks matching
-code-highlighting colours. Rendered Markdown sits inside
+`scheme` is `light`, `dark` or `auto` (follow the system) and picks the light
+or dark code-highlighting theme (set in Preferences → Highlighting). Rendered Markdown sits inside
 `<div class="markdown-body">` (a `<div>`, so classless stylesheets that style
 `<article>` as a card don't); code blocks are
 `<pre class="highlight"><code class="language-…">`. A user style with the same
@@ -140,6 +144,7 @@ Or right-click a `.md` file in Thunar → **Open With → Markdown Viewer**.
 | Ctrl+= / Ctrl+− / Ctrl+0 | Zoom in / out / reset (or Ctrl+mouse wheel) |
 | Alt+← / Alt+→ | Back / forward |
 | F9 | Table of contents |
+| Ctrl+U | Show source / rendered document |
 | Ctrl+W | Close window |
 | Ctrl+Q | Close all windows |
 
@@ -193,17 +198,17 @@ bin/md-viewer          launcher script (used by make install)
 src/md_viewer/
   main.py              MdViewerApplication — single instance, opens files, recent menu
   flavors.py           Markdown flavors and their parser backends
-  highlight.py         pygments syntax highlighting for code blocks
+  highlight.py         pygments syntax highlighting: code blocks, source view, themes
   postprocess.py       heading ids, table of contents, math/diagram detection
   styles.py            CSS style discovery (built-in + user)
-  document.py          assembles the final HTML page
+  document.py          assembles the final HTML page (and the source view page)
   links.py             what a clicked link does (open here / externally / block)
   history.py           back/forward history
   paths.py             data and user directories
   settings.py          GSettings with fallback when schema is missing
   ui/window.py         ViewerWindow — WebKit view, reload, find, zoom, print
   ui/menus.py          menu bar model, flavor/style submenus, keyboard shortcuts
-  ui/preferences.py    Preferences window
+  ui/preferences.py    Preferences window (General and Highlighting tabs)
   ui/shortcuts.py      Keyboard Shortcuts window (generated from ui/menus.py)
 data/                  .desktop, GSettings schema, AppStream metainfo, icons
 data/styles/           built-in CSS styles (github*.css are generated — see tools/)

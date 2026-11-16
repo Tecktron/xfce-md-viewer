@@ -23,6 +23,7 @@ ACCELS: dict[str, list[str]] = {
     "win.zoom-in": ["<Control>plus", "<Control>equal", "<Control>KP_Add"],
     "win.zoom-out": ["<Control>minus", "<Control>KP_Subtract"],
     "win.zoom-reset": ["<Control>0", "<Control>KP_0"],
+    "win.source": ["<Control>u"],
     "win.toc": ["F9"],
     "win.back": ["<Alt>Left"],
     "win.forward": ["<Alt>Right"],
@@ -56,6 +57,7 @@ SHORTCUT_HELP: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "View",
         [
+            ("Show source or rendered document", "win.source"),
             ("Table of contents", "win.toc"),
             ("Zoom in", "win.zoom-in"),
             ("Zoom out", "win.zoom-out"),
@@ -186,8 +188,14 @@ def build_menu_model(recent_menu: Gio.Menu, flavor_menu: Gio.Menu, style_menu: G
 
     view_menu = Gio.Menu()
     panes = Gio.Menu()
-    for label, action in (("Show Table of _Contents", "win.toc-show"), ("Hide Table of _Contents", "win.toc-hide")):
-        item = _item(label, action, "F9")
+    # Pairs of which each window enables only one action (hidden-when=action-disabled).
+    for label, action, accel in (
+        ("Show So_urce", "win.source-show", "<Control>u"),
+        ("Show _Rendered", "win.source-hide", "<Control>u"),
+        ("Show Table of _Contents", "win.toc-show", "F9"),
+        ("Hide Table of _Contents", "win.toc-hide", "F9"),
+    ):
+        item = _item(label, action, accel)
         item.set_attribute_value("hidden-when", GLib.Variant.new_string("action-disabled"))
         panes.append_item(item)
     view_menu.append_section(None, panes)

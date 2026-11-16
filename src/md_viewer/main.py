@@ -31,7 +31,14 @@ _log = logging.getLogger(__name__)
 ISSUES_URL = "https://github.com/Tecktron/xfce-md-viewer/issues"
 MAX_RECENT = 10
 STYLES_RESCAN_DELAY_MS = 300
-_DEFAULT_KEYS = ("default-flavor", "default-style", "allow-remote-images")
+_DEFAULT_KEYS = (
+    "default-flavor",
+    "default-style",
+    "allow-remote-images",
+    "highlight-use-default",
+    "highlight-light-theme",
+    "highlight-dark-theme",
+)
 
 
 class MdViewerApplication(Gtk.Application):
