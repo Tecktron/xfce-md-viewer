@@ -21,3 +21,8 @@ def test_changelog_matches_version():
 def test_metainfo_lists_current_version():
     metainfo = (ROOT / "data" / f"{md_viewer.APP_ID}.metainfo.xml").read_text()
     assert f'<release version="{md_viewer.__version__}"' in metainfo
+
+
+def test_man_page_lists_current_version():
+    first_line = (ROOT / "data" / "md-viewer.1").read_text().splitlines()[0]
+    assert f'"xfce-md-viewer {md_viewer.__version__}"' in first_line

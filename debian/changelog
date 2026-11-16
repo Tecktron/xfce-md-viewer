@@ -1,3 +1,12 @@
+xfce-md-viewer (1.1.0) noble; urgency=low
+
+  * New: View → Show Source (Ctrl+U) shows the Markdown source, highlighted,
+    so the original Markdown can be selected and copied.
+  * New: Preferences → Highlighting chooses the syntax-highlighting colours
+    (a light and a dark theme), with a live preview.
+
+ -- Tecktron Studios <software@tecktron.net>  Mon, 16 Nov 2026 08:46:00 -0500
+
 xfce-md-viewer (1.0.1) noble; urgency=low
 
   * Fix a crash in virtual machines without 3D acceleration: use GTK's

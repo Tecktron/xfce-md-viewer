@@ -144,6 +144,7 @@ Or right-click a `.md` file in Thunar → **Open With → Markdown Viewer**.
 | Ctrl+= / Ctrl+− / Ctrl+0 | Zoom in / out / reset (or Ctrl+mouse wheel) |
 | Alt+← / Alt+→ | Back / forward |
 | F9 | Table of contents |
+| Ctrl+U | Show source / rendered document |
 | Ctrl+W | Close window |
 | Ctrl+Q | Close all windows |
 

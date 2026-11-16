@@ -24,6 +24,7 @@
       <li>Eight built-in styles (GitHub light, dark and high contrast, Water, Simple, LaTeX and Plain) plus your own CSS styles from a folder, picked up live</li>
       <li>Math with KaTeX and Mermaid diagrams, working offline</li>
       <li>Syntax-highlighted code blocks and a table of contents sidebar</li>
+      <li>View the Markdown source, and choose your own syntax-highlighting colours</li>
       <li>Automatic reload when the file changes, keeping your place</li>
       <li>Find, zoom, print and export to PDF</li>
       <li>Links to other Markdown files open in the viewer with back and forward</li>
@@ -48,6 +49,15 @@
   </recommends>
 
   <releases>
+    <release version="1.1.0" date="2026-11-16">
+      <description>
+        <p>New features:</p>
+        <ul>
+          <li>View → Show Source (Ctrl+U) shows the highlighted Markdown source, ready to select and copy</li>
+          <li>Choose your own syntax-highlighting colours in Preferences → Highlighting, with a live preview</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.1" date="2026-11-06">
       <description>
         <p>Bug fixes:</p>

@@ -189,6 +189,8 @@ class ViewerWindow(Gtk.ApplicationWindow):
         self._toc_ids: list[str] = []
         self._toc_visible = False  # the user's choice; the pane is also hidden in source view
         self._show_source = False  # View → Show Source; per window, not saved
+        # Which view the page on screen is: True/False, or None for a message (or nothing yet).
+        self._page_is_source: bool | None = None
         # Set when the user picks a flavor/style from the View menu; None = follow the defaults.
         self._flavor_override: str | None = None
         self._style_override: str | None = None
@@ -473,6 +475,11 @@ class ViewerWindow(Gtk.ApplicationWindow):
             if is_reload:
                 # A reload failed (e.g. mid-save): keep showing the last good render.
                 _log.debug("Reload of %s failed: %s", file.get_parse_name(), exc.message)
+                if self._page_is_source is not None and self._page_is_source != self._show_source:
+                    # It was a switch between rendered and source view: the page didn't
+                    # change, so neither does the mode (menu items, TOC).
+                    self._show_source = self._page_is_source
+                    self._update_actions()
             else:
                 self._show_message(f"Cannot open {html.escape(file.get_parse_name())}: {html.escape(exc.message)}")
             return
@@ -487,7 +494,7 @@ class ViewerWindow(Gtk.ApplicationWindow):
 
         def work() -> None:
             rendered, error = _render_page(text, title, flavor_id, style, allow_remote, themes, source=source)
-            GLib.idle_add(self._on_rendered, generation, file, rendered, error, scroll, scheme)
+            GLib.idle_add(self._on_rendered, generation, file, rendered, error, scroll, scheme, source)
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -499,6 +506,7 @@ class ViewerWindow(Gtk.ApplicationWindow):
         error: str | None,
         scroll: ScrollPosition | None,
         scheme: str,
+        source: bool,
     ) -> bool:
         if generation != self._generation:
             return GLib.SOURCE_REMOVE
@@ -506,6 +514,7 @@ class ViewerWindow(Gtk.ApplicationWindow):
             name = html.escape(file.get_basename() or file.get_uri())
             self._show_message(f"Cannot render {name}: {html.escape(error or 'unknown error')}")
             return GLib.SOURCE_REMOVE
+        self._page_is_source = source
         self._install_page_scripts(math=rendered.has_math, mermaid=rendered.has_mermaid)
         self._pending_enhance = scheme if (rendered.has_math or rendered.has_mermaid) else None
         self._populate_toc(rendered.headings)
@@ -525,6 +534,7 @@ class ViewerWindow(Gtk.ApplicationWindow):
                 manager.add_script(script)
 
     def _show_message(self, message: str) -> None:
+        self._page_is_source = None
         self._pending_enhance = None
         self._restore_scroll = None
         self._populate_toc([])
