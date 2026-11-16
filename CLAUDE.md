@@ -98,14 +98,23 @@ src/md_viewer/
                   FlavorUnavailableError / RenderError.
   highlight.py    highlight_code_blocks(): one post-processing pass for all backends;
                   normalises code blocks to <pre class="highlight"><code class="language-X">.
-                  Skips mermaid/math. highlight_css() = light + dark (prefers-color-scheme).
+                  Skips mermaid/math. Themes(light, dark, custom): Pygments theme names;
+                  highlight_css(scheme, themes) = light + dark (prefers-color-scheme) — custom
+                  themes also paint `.markdown-body pre.highlight` bg/text (so dark themes stay
+                  readable on light styles); defaults keep each style's code background.
+                  highlight_source() = whole file via MarkdownLexer(stripnl=False) for the
+                  source view; available_themes() read at runtime (24.04's Pygments differs),
+                  resolve_theme() falls back to the defaults.
   styles.py       discover_styles() → {id: Style}; built-ins + ~/.local/share/md-viewer/styles/
                   (user wins on id clash); name/description from leading /* name: … */ comment.
   document.py     build_page() / render_document(); CONTENT_SECURITY_POLICY blocks scripts
                   and network; style CSS escaped so it can't close </style>.
+                  build_source_page() (View → Show Source) and build_theme_preview()
+                  (Preferences preview) — same CSP, no style CSS.
   paths.py        data_dir() (repo data/ in dev, /usr/share/xfce-md-viewer installed),
                   builtin_styles_dir(), user_styles_dir()
-  settings.py     get_settings() → Gio.Settings | None (None when schema not installed)
+  settings.py     get_settings() → Gio.Settings | None (None when schema not installed);
+                  highlight_themes() → Themes from the highlight-* keys
   renderer.py     prefer_gl_renderer(environ, gtk_version): GTK-free; main() calls it before
                   the app starts. See "Theming notes" for why.
   links.py        classify_link(target, current) → LinkAction (ALLOW in-page anchor,
@@ -120,8 +129,11 @@ src/md_viewer/
                   since GTK 4.18) built from menus.SHORTCUT_HELP + ACCELS; a unit test
                   enforces that every ACCELS entry is listed and vice versa.
   ui/preferences.py
-                  PreferencesWindow (Gtk.Window, instant-apply): default flavor/style
-                  dropdowns, allow-remote-images checkbox (settings.bind), styles folder.
+                  PreferencesWindow (Gtk.Window, instant-apply), Gtk.Notebook with two tabs.
+                  General: default flavor/style dropdowns, allow-remote-images checkbox
+                  (settings.bind), styles folder. Highlighting: "Use default colours"
+                  (greys out the rest), light/dark theme dropdowns, live preview WebView
+                  (can_target=False, JS off) showing what documents actually use.
                   Disconnects its GSettings handlers on close; settings changes only
                   re-select (never rebuild the model inside notify::selected).
   ui/window.py    ViewerWindow (Gtk.ApplicationWindow): PopoverMenuBar, Gtk.SearchBar,
@@ -189,6 +201,13 @@ files is recorded in `debian/copyright`.
 - **GTK 4 popover menus have a ~46 px minimum height**, so any one-item menu shows
   ~20 px of empty space at the bottom (theme-independent). Never ship a one-item menu.
 - **Copy / Select All** are native WebKit keys; menu items only *display* the accel.
+- **Source view** (View → Show Source / Show Rendered = win.source-show / -hide, Ctrl+U =
+  win.source): per window, never saved. `_show_source` makes the render worker build
+  `build_source_page()` instead; same load/reload/watch/find path, so Copy gives the exact
+  Markdown. The TOC pane and its actions are disabled meanwhile (`_toc_visible` keeps the
+  user's choice). Switching reloads with `ScrollPosition(proportional=True)` — same
+  fraction of the page, since the two views' heights differ. With no document both items
+  are hidden (both actions disabled).
 
 **Manual test harness:** GTK/WebKit wiring isn't unit-tested. To exercise it,
 drive a real window in-process (create `MdViewerApplication`, swap its
@@ -201,7 +220,8 @@ prevention, so don't rely on xdotool keys/clicks.
 ## Flavors, styles and defaults
 
 - GSettings: `default-flavor`, `default-style`, `allow-remote-images`, `zoom-level`,
-  window size keys.
+  `highlight-use-default` (true) / `highlight-light-theme` / `highlight-dark-theme`,
+  window size keys. All "default" keys (incl. highlight-*) re-render every window.
 - **App** (`main.py`) owns `styles` (re-scanned when the user styles dir changes,
   debounced `STYLES_RESCAN_DELAY_MS`), `pandoc_available` (checked at startup), the
   flavor/style menus and the single Preferences window. On a defaults change or a

@@ -1,4 +1,5 @@
-"""Preferences window: default flavor/style, remote images, custom styles folder.
+"""Preferences window: General (default flavor/style, remote images, custom styles
+folder) and Highlighting (syntax-highlighting themes with a live preview).
 
 Instant-apply (changes are written to GSettings immediately; open windows that
 haven't been switched by hand follow along). Plain Gtk.Window — no libadwaita.
@@ -12,11 +13,14 @@ from pathlib import Path
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, GLib, Gtk, Pango
+gi.require_version("WebKit", "6.0")
+from gi.repository import Gio, GLib, Gtk, Pango, WebKit
 
+from ..document import build_theme_preview
 from ..flavors import FLAVORS, Flavor
+from ..highlight import DARK_THEME, LIGHT_THEME, available_themes, resolve_theme
 from ..paths import user_styles_dir
-from ..settings import get_settings
+from ..settings import get_settings, highlight_themes
 from ..styles import DEFAULT_STYLE, Style, resolve_style
 
 _log = logging.getLogger(__name__)
@@ -31,6 +35,20 @@ def _display_path(path: Path) -> str:
 
 
 STYLE_HEADER_EXAMPLE = "/* name: My Style\n   description: One line about it\n   scheme: auto */"
+PREVIEW_HEIGHT_PX = 260
+_HIGHLIGHT_KEYS = ("highlight-use-default", "highlight-light-theme", "highlight-dark-theme")
+
+
+def _padded_box() -> Gtk.Box:
+    """Vertical box with the window's spacing and margins (the window itself and each tab)."""
+    return Gtk.Box(
+        orientation=Gtk.Orientation.VERTICAL,
+        spacing=18,
+        margin_top=18,
+        margin_bottom=18,
+        margin_start=18,
+        margin_end=18,
+    )
 
 
 class PreferencesWindow(Gtk.Window):
@@ -41,12 +59,14 @@ class PreferencesWindow(Gtk.Window):
         self._settings = get_settings()
         self._flavors: list[Flavor] = []
         self._style_ids: list[str] = []
+        self._themes = available_themes()
         self._updating = False  # suppress dropdown handlers while repopulating
         self._settings_handlers: list[int] = []
 
         self._build_ui()
         self.refresh_flavors()
         self.refresh_styles()
+        self._sync_highlighting()
 
         escape = Gtk.ShortcutController()
         escape.add_shortcut(
@@ -59,14 +79,52 @@ class PreferencesWindow(Gtk.Window):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        outer = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=18,
-            margin_top=18,
-            margin_bottom=18,
-            margin_start=18,
-            margin_end=18,
-        )
+        outer = _padded_box()
+        notebook = Gtk.Notebook()
+        notebook.append_page(self._build_general_page(), Gtk.Label(label="_General", use_underline=True))
+        notebook.append_page(self._build_highlighting_page(), Gtk.Label(label="_Highlighting", use_underline=True))
+        outer.append(notebook)
+
+        buttons = Gtk.Box(halign=Gtk.Align.END)
+        close_btn = Gtk.Button(label="_Close", use_underline=True)
+        close_btn.connect("clicked", lambda *_: self.close())
+        buttons.append(close_btn)
+        outer.append(buttons)
+
+        if self._settings is None:
+            for widget in (
+                self._flavor_dropdown,
+                self._style_dropdown,
+                self._remote_check,
+                self._default_colours_check,
+            ):
+                widget.set_sensitive(False)
+            missing = Gtk.Label(
+                label="Settings can't be saved: the GSettings schema is not installed.", wrap=True, xalign=0
+            )
+            missing.add_css_class("error")
+            outer.prepend(missing)
+        else:
+            self._settings.bind("allow-remote-images", self._remote_check, "active", Gio.SettingsBindFlags.DEFAULT)
+            self._settings.bind(
+                "highlight-use-default", self._default_colours_check, "active", Gio.SettingsBindFlags.DEFAULT
+            )
+            # Only re-select on external changes; rebuilding the model from inside the
+            # dropdown's own notify::selected handler would re-enter it.
+            self._settings_handlers = [
+                self._settings.connect("changed::default-flavor", lambda *_: self._sync_selection()),
+                self._settings.connect("changed::default-style", lambda *_: self._sync_selection()),
+            ] + [
+                self._settings.connect(f"changed::{key}", lambda *_: self._sync_highlighting())
+                for key in _HIGHLIGHT_KEYS
+            ]
+            self.connect("close-request", self._on_close_request)
+
+        self.set_child(outer)
+        close_btn.grab_focus()
+
+    def _build_general_page(self) -> Gtk.Widget:
+        outer = _padded_box()
 
         grid = Gtk.Grid(column_spacing=12, row_spacing=10)
         self._flavor_dropdown = Gtk.DropDown(hexpand=True)
@@ -139,33 +197,52 @@ class PreferencesWindow(Gtk.Window):
         folder_row.append(folder_label)
         folder_row.append(open_btn)
         outer.append(folder_row)
+        return outer
 
-        buttons = Gtk.Box(halign=Gtk.Align.END)
-        close_btn = Gtk.Button(label="_Close", use_underline=True)
-        close_btn.connect("clicked", lambda *_: self.close())
-        buttons.append(close_btn)
-        outer.append(buttons)
+    def _build_highlighting_page(self) -> Gtk.Widget:
+        outer = _padded_box()
 
-        if self._settings is None:
-            for widget in (self._flavor_dropdown, self._style_dropdown, self._remote_check):
-                widget.set_sensitive(False)
-            missing = Gtk.Label(
-                label="Settings can't be saved: the GSettings schema is not installed.", wrap=True, xalign=0
-            )
-            missing.add_css_class("error")
-            outer.prepend(missing)
-        else:
-            self._settings.bind("allow-remote-images", self._remote_check, "active", Gio.SettingsBindFlags.DEFAULT)
-            # Only re-select on external changes; rebuilding the model from inside the
-            # dropdown's own notify::selected handler would re-enter it.
-            self._settings_handlers = [
-                self._settings.connect("changed::default-flavor", lambda *_: self._sync_selection()),
-                self._settings.connect("changed::default-style", lambda *_: self._sync_selection()),
-            ]
-            self.connect("close-request", self._on_close_request)
+        self._default_colours_check = Gtk.CheckButton(label="_Use default colours", use_underline=True)
+        outer.append(self._default_colours_check)
+        hint = Gtk.Label(
+            label=(
+                "Colours for code blocks and View → Show Source. A style's colour scheme picks the light or "
+                "dark theme; styles that follow the system use the one matching your desktop. Themes chosen "
+                "here also set the code block background."
+            ),
+            wrap=True,
+            xalign=0,
+            max_width_chars=60,
+        )
+        hint.add_css_class("dim-label")
+        outer.append(hint)
 
-        self.set_child(outer)
-        close_btn.grab_focus()
+        self._theme_grid = Gtk.Grid(column_spacing=12, row_spacing=10)
+        self._light_dropdown = self._theme_dropdown("highlight-light-theme")
+        self._dark_dropdown = self._theme_dropdown("highlight-dark-theme")
+        for row, (text, widget) in enumerate(
+            (("_Light theme:", self._light_dropdown), ("_Dark theme:", self._dark_dropdown))
+        ):
+            label = Gtk.Label(label=text, use_underline=True, xalign=1, mnemonic_widget=widget)
+            self._theme_grid.attach(label, 0, row, 1, 1)
+            self._theme_grid.attach(widget, 1, row, 1, 1)
+        outer.append(self._theme_grid)
+
+        # Display only: not clickable or focusable, so no navigation, drops or context menu.
+        self._preview = WebKit.WebView(can_target=False, focusable=False, height_request=PREVIEW_HEIGHT_PX)
+        self._preview.get_settings().set_enable_javascript(False)
+        outer.append(Gtk.Frame(child=self._preview))
+        return outer
+
+    def _theme_dropdown(self, key: str) -> Gtk.DropDown:
+        dropdown = Gtk.DropDown(
+            model=Gtk.StringList.new(self._themes),
+            enable_search=True,
+            expression=Gtk.PropertyExpression.new(Gtk.StringObject, None, "string"),
+            hexpand=True,
+        )
+        dropdown.connect("notify::selected", self._on_theme_selected, key)
+        return dropdown
 
     def _close(self, *_args: object) -> bool:
         self.close()
@@ -176,6 +253,7 @@ class PreferencesWindow(Gtk.Window):
             for handler in self._settings_handlers:
                 self._settings.disconnect(handler)
             self._settings.unbind(self._remote_check, "active")
+            self._settings.unbind(self._default_colours_check, "active")
         self._settings_handlers = []
         return False
 
@@ -246,6 +324,35 @@ class PreferencesWindow(Gtk.Window):
         style_id = self._style_ids[index]
         if self._settings.get_string("default-style") != style_id:
             self._settings.set_string("default-style", style_id)
+
+    # ------------------------------------------------------------------
+    # Highlighting
+    # ------------------------------------------------------------------
+
+    def _sync_highlighting(self) -> None:
+        """Reflect the highlighting settings in the dropdowns, their sensitivity and the preview."""
+        settings = self._settings
+        use_default = settings is None or settings.get_boolean("highlight-use-default")
+        if settings is None:
+            self._default_colours_check.set_active(True)
+        self._theme_grid.set_sensitive(not use_default)
+        light = resolve_theme(settings.get_string("highlight-light-theme"), LIGHT_THEME) if settings else LIGHT_THEME
+        dark = resolve_theme(settings.get_string("highlight-dark-theme"), DARK_THEME) if settings else DARK_THEME
+        self._updating = True
+        try:
+            self._select(self._light_dropdown, self._themes, light)
+            self._select(self._dark_dropdown, self._themes, dark)
+        finally:
+            self._updating = False
+        # What documents actually use: the defaults while "Use default colours" is ticked.
+        self._preview.load_html(build_theme_preview(highlight_themes()), None)
+
+    def _on_theme_selected(self, dropdown: Gtk.DropDown, _pspec: object, key: str) -> None:
+        index = dropdown.get_selected()
+        if self._updating or self._settings is None or index >= len(self._themes):
+            return
+        if self._settings.get_string(key) != self._themes[index]:
+            self._settings.set_string(key, self._themes[index])
 
     # ------------------------------------------------------------------
     # Styles folder

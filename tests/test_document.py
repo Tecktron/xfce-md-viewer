@@ -1,6 +1,14 @@
 """Full-page assembly."""
 
-from md_viewer.document import CONTENT_SECURITY_POLICY, REMOTE_IMAGES_POLICY, build_page, render_document
+from md_viewer.document import (
+    CONTENT_SECURITY_POLICY,
+    REMOTE_IMAGES_POLICY,
+    build_page,
+    build_source_page,
+    build_theme_preview,
+    render_document,
+)
+from md_viewer.highlight import Themes, theme_colours
 
 
 def test_page_structure():
@@ -82,3 +90,36 @@ def test_base_css_comes_before_style_css():
     page = build_page("", "MY-STYLE{}", "t")
     assert "task-list-item" in page
     assert page.index("task-list-item") < page.index("MY-STYLE")
+
+
+def test_chosen_themes_reach_the_page():
+    page = build_page("", "", "t", "light", themes=Themes("monokai", "fruity", custom=True))
+    assert theme_colours("monokai")[0] in page
+
+
+def test_source_page_shows_the_markdown_highlighted():
+    page = build_source_page("# Hi <b>\n", "a <b>")
+    assert page.startswith("<!doctype html>")
+    assert CONTENT_SECURITY_POLICY in page
+    assert "<title>a &lt;b&gt;</title>" in page
+    assert '<pre class="highlight source"><code><span class="gh"># Hi &lt;b&gt;</span>' in page
+    assert "markdown-body" not in page
+
+
+def test_source_page_cannot_inject_markup():
+    page = build_source_page("</code></pre><script>alert(1)</script>", "t")
+    assert "<script>" not in page
+
+
+def test_source_page_colour_scheme():
+    assert '<meta name="color-scheme" content="dark">' in build_source_page("", "t", "dark")
+    assert '<meta name="color-scheme" content="light dark">' in build_source_page("", "t", "auto")
+    assert "prefers-color-scheme: dark" not in build_source_page("", "t", "light")
+
+
+def test_theme_preview_shows_both_themes():
+    page = build_theme_preview(Themes("monokai", "fruity", custom=True))
+    assert CONTENT_SECURITY_POLICY in page
+    assert page.count('<pre class="highlight">') == 2
+    assert theme_colours("monokai")[0] in page
+    assert theme_colours("fruity")[0] in page

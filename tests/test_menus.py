@@ -133,11 +133,13 @@ def test_file_menu_close_then_hideable_quit_section():
     assert last.get_item_attribute_value(0, "hidden-when").get_string() == "action-disabled"
 
 
-def test_view_menu_has_show_and_hide_toc_hidden_when_disabled():
+def test_view_menu_has_source_and_toc_pairs_hidden_when_disabled():
     model = build_menu_model(Gio.Menu(), Gio.Menu(), Gio.Menu())
     view_menu = model.get_item_link(2, Gio.MENU_LINK_SUBMENU)
     panes = view_menu.get_item_link(0, Gio.MENU_LINK_SECTION)
     assert [(label, action) for label, action, _ in _items(panes)] == [
+        ("Show So_urce", "win.source-show"),
+        ("Show _Rendered", "win.source-hide"),
         ("Show Table of _Contents", "win.toc-show"),
         ("Hide Table of _Contents", "win.toc-hide"),
     ]

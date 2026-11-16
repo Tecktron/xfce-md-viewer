@@ -6,6 +6,8 @@ Markdown → flavor backend → post-processing → syntax highlighting → page
 The page never runs scripts of its own (the CSP has no script-src). Math and
 diagrams are rendered by the viewer's own scripts in an isolated world; see
 ``Rendered.has_math`` / ``has_mermaid`` and ui/window.py.
+
+Also builds the source view page (View → Show Source) and the Preferences theme preview.
 """
 
 from __future__ import annotations
@@ -15,7 +17,15 @@ import html
 from dataclasses import dataclass, field
 
 from .flavors import render_body
-from .highlight import highlight_code_blocks, highlight_css
+from .highlight import (
+    DEFAULT_THEMES,
+    Themes,
+    highlight_code_blocks,
+    highlight_css,
+    highlight_source,
+    preview_css,
+    source_css,
+)
 from .paths import vendor_dir
 from .postprocess import Heading, postprocess
 
@@ -79,6 +89,71 @@ _TEMPLATE = """<!doctype html>
 """
 
 
+# View → Show Source: the file itself, highlighted. Long lines wrap; no style CSS.
+_SOURCE_TEMPLATE = """<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{csp}">
+<meta name="color-scheme" content="{color_scheme}">
+<title>{title}</title>
+<style>
+html, body {{ margin: 0; }}
+pre.source {{ margin: 0; padding: 16px 24px; background: transparent; font-family: monospace;
+             font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }}
+</style>
+<style>
+{highlight_css}
+</style>
+</head>
+<body>
+<pre class="highlight source"><code>{body}</code></pre>
+</body>
+</html>
+"""
+
+_COLOR_SCHEMES = {"light": "light", "dark": "dark"}  # anything else ("auto") → "light dark"
+
+# Preferences → Highlighting: the same sample in the light and the dark theme.
+PREVIEW_SAMPLE = """# Heading
+
+Some *emphasis*, **bold**,
+`code` and a [link](url).
+
+- List item
+> A quote
+
+```python
+def greet(name):
+    # Say hello
+    return f"Hi {name}!"
+```
+"""
+
+_PREVIEW_TEMPLATE = """<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{csp}">
+<style>
+html, body {{ margin: 0; height: 100%; }}
+body {{ display: flex; }}
+.pane {{ flex: 1; min-width: 0; padding: 8px 12px; overflow: hidden; }}
+.caption {{ font: 600 11px sans-serif; opacity: .6; margin-bottom: 6px; }}
+pre {{ margin: 0; font-family: monospace; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }}
+</style>
+<style>
+{highlight_css}
+</style>
+</head>
+<body>
+<div class="pane light"><div class="caption">Light</div><pre class="highlight"><code>{body}</code></pre></div>
+<div class="pane dark"><div class="caption">Dark</div><pre class="highlight"><code>{body}</code></pre></div>
+</body>
+</html>
+"""
+
+
 @functools.cache
 def katex_css() -> str:
     """Bundled KaTeX stylesheet with its font URLs pointing at the bundled fonts."""
@@ -93,6 +168,7 @@ def build_page(
     title: str,
     scheme: str = "auto",
     *,
+    themes: Themes = DEFAULT_THEMES,
     allow_remote_images: bool = False,
     include_katex_css: bool = False,
 ) -> str:
@@ -101,7 +177,7 @@ def build_page(
         csp=content_security_policy(allow_remote_images),
         title=html.escape(title),
         base_css=BASE_CSS,
-        highlight_css=highlight_css(scheme),
+        highlight_css=highlight_css(scheme, themes),
         extra_css=katex_css() if include_katex_css else "",
         # A user style containing "</style" must not be able to close the element early.
         style_css=style_css.replace("</", "<\\/"),
@@ -116,6 +192,7 @@ def render_document(
     title: str,
     scheme: str = "auto",
     *,
+    themes: Themes = DEFAULT_THEMES,
     allow_remote_images: bool = False,
 ) -> Rendered:
     """Render Markdown *text* with *flavor_id* into a full page styled by *style_css*."""
@@ -125,7 +202,28 @@ def render_document(
         style_css,
         title,
         scheme,
+        themes=themes,
         allow_remote_images=allow_remote_images,
         include_katex_css=processed.has_math,
     )
     return Rendered(page, processed.headings, processed.has_math, processed.has_mermaid)
+
+
+def build_source_page(text: str, title: str, scheme: str = "auto", themes: Themes = DEFAULT_THEMES) -> str:
+    """The Markdown *text* itself, highlighted, as a full page (View → Show Source)."""
+    return _SOURCE_TEMPLATE.format(
+        csp=CONTENT_SECURITY_POLICY,
+        color_scheme=_COLOR_SCHEMES.get(scheme, "light dark"),
+        title=html.escape(title),
+        highlight_css=source_css(scheme, themes),
+        body=highlight_source(text),
+    )
+
+
+def build_theme_preview(themes: Themes) -> str:
+    """:data:`PREVIEW_SAMPLE` in the light and the dark theme, side by side."""
+    return _PREVIEW_TEMPLATE.format(
+        csp=CONTENT_SECURITY_POLICY,
+        highlight_css=preview_css(themes),
+        body=highlight_source(PREVIEW_SAMPLE),
+    )

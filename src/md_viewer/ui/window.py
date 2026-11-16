@@ -8,6 +8,10 @@ Loading pipeline (never blocks the UI):
   → (load finished) mdViewer.enhance() for math/diagrams → restore scroll.
 Every load bumps ``self._generation``; stale results are dropped.
 
+View → Show Source (per window, not saved) renders the file itself, highlighted,
+through the same pipeline; the TOC is hidden meanwhile (its ids only exist in
+the rendered page).
+
 Page scripts: the document's CSP blocks all of its own scripts. The viewer's
 scripts (data/js/enhance.js, plus KaTeX / Mermaid only when the page needs
 them) are WebKit *user scripts* in the isolated world SCRIPT_WORLD. Globals
@@ -22,6 +26,7 @@ import html
 import json
 import logging
 import threading
+from typing import NamedTuple
 
 import gi
 
@@ -31,13 +36,14 @@ gi.require_version("WebKit", "6.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango, WebKit
 
 from .. import APP_ID, APP_NAME
-from ..document import Rendered, render_document
+from ..document import Rendered, build_source_page, render_document
 from ..flavors import DEFAULT_FLAVOR, FLAVORS, FlavorUnavailableError, RenderError
+from ..highlight import Themes
 from ..history import History
 from ..links import LinkAction, classify_link, strip_fragment
 from ..paths import scripts_dir, vendor_dir
 from ..postprocess import Heading
-from ..settings import get_settings
+from ..settings import get_settings, highlight_themes
 from ..styles import DEFAULT_STYLE, Style, resolve_style
 from .menus import context_menu_entries
 
@@ -82,6 +88,30 @@ TOC_INDENT_PX = 14
 TOC_MARGIN_PX = 8
 
 # name -> file providing a user script for SCRIPT_WORLD
+# Reads the scroll position as a fraction of the scrollable height (see ScrollPosition).
+_SCROLL_FRACTION_JS = (
+    "(() => { const max = document.documentElement.scrollHeight - window.innerHeight;"
+    " return max > 0 ? window.scrollY / max : 0; })()"
+)
+
+
+class ScrollPosition(NamedTuple):
+    """Where to scroll once the next page is ready."""
+
+    value: float
+    # True: *value* is a fraction of the scrollable height — used when switching
+    # between rendered and source view, whose heights differ.
+    proportional: bool = False
+
+    def restore_script(self) -> str:
+        if self.proportional:
+            return (
+                f"window.scrollTo(0, {float(self.value)} * "
+                "(document.documentElement.scrollHeight - window.innerHeight))"
+            )
+        return f"window.scrollTo(0, {float(self.value)})"
+
+
 _USER_SCRIPTS = {
     "enhance": lambda: scripts_dir() / "enhance.js",
     "katex": lambda: vendor_dir() / "katex" / "katex.min.js",
@@ -109,13 +139,27 @@ def _user_script(name: str) -> WebKit.UserScript | None:
 
 
 def _render_page(
-    text: str, title: str, flavor_id: str, style: Style | None, allow_remote_images: bool
+    text: str,
+    title: str,
+    flavor_id: str,
+    style: Style | None,
+    allow_remote_images: bool,
+    themes: Themes,
+    *,
+    source: bool,
 ) -> tuple[Rendered | None, str | None]:
-    """Worker-thread body: returns (rendered, None) or (None, error message). No GTK here."""
+    """Worker-thread body: returns (rendered, None) or (None, error message). No GTK here.
+
+    *source*: show the Markdown itself (View → Show Source) instead of rendering it.
+    """
+    scheme = style.scheme if style is not None else "auto"
+    if source:
+        return Rendered(build_source_page(text, title, scheme, themes)), None
     try:
         style_css = style.read_css() if style is not None else ""
-        scheme = style.scheme if style is not None else "auto"
-        rendered = render_document(text, flavor_id, style_css, title, scheme, allow_remote_images=allow_remote_images)
+        rendered = render_document(
+            text, flavor_id, style_css, title, scheme, themes=themes, allow_remote_images=allow_remote_images
+        )
     except FlavorUnavailableError as exc:
         return None, f"{exc}. Choose another flavor in View → Flavor, or install pandoc."
     except (RenderError, OSError) as exc:
@@ -139,10 +183,12 @@ class ViewerWindow(Gtk.ApplicationWindow):
         self._reload_source = 0
         self._deleted = False
         self._expected_load_uri: str | None = None
-        self._restore_scroll: float | None = None
+        self._restore_scroll: ScrollPosition | None = None
         # Colour scheme to pass to mdViewer.enhance() once the page loads; None = nothing to enhance.
         self._pending_enhance: str | None = None
         self._toc_ids: list[str] = []
+        self._toc_visible = False  # the user's choice; the pane is also hidden in source view
+        self._show_source = False  # View → Show Source; per window, not saved
         # Set when the user picks a flavor/style from the View menu; None = follow the defaults.
         self._flavor_override: str | None = None
         self._style_override: str | None = None
@@ -272,11 +318,15 @@ class ViewerWindow(Gtk.ApplicationWindow):
             stateful.connect("change-state", handler)
             self.add_action(stateful)
 
-        # Table of contents: F9 toggles (win.toc); the View menu shows either
-        # "Show…" or "Hide…" — only the matching action is enabled, and the menu
-        # items are hidden-when=action-disabled (the menu model is shared by all windows).
+        # Source view (Ctrl+U = win.source) and table of contents (F9 = win.toc) are
+        # toggles; the View menu shows either "Show…" or the opposite item — only the
+        # matching action is enabled, and the menu items are hidden-when=action-disabled
+        # (the menu model is shared by all windows). See _update_actions.
         for name, callback in (
-            ("toc", lambda *_: self._set_toc_visible(not self._toc_pane.get_visible())),
+            ("source", lambda *_: self._set_source(not self._show_source)),
+            ("source-show", lambda *_: self._set_source(True)),
+            ("source-hide", lambda *_: self._set_source(False)),
+            ("toc", lambda *_: self._set_toc_visible(not self._toc_visible)),
             ("toc-show", lambda *_: self._set_toc_visible(True)),
             ("toc-hide", lambda *_: self._set_toc_visible(False)),
         ):
@@ -285,14 +335,21 @@ class ViewerWindow(Gtk.ApplicationWindow):
             self.add_action(action)
         settings = get_settings()
         self._set_toc_visible(settings.get_boolean("show-toc") if settings else False, save=False)
-        self._update_actions()
 
     def _update_actions(self) -> None:
+        """Enable the actions that apply now; also shows/hides the TOC pane to match."""
         has_doc = self._file is not None
-        for name in ("reload", "print", "find", "find-next", "find-previous"):
+        for name in ("reload", "print", "find", "find-next", "find-previous", "source"):
             self.lookup_action(name).set_enabled(has_doc)
         self.lookup_action("back").set_enabled(self._history.can_go_back())
         self.lookup_action("forward").set_enabled(self._history.can_go_forward())
+        self.lookup_action("source-show").set_enabled(has_doc and not self._show_source)
+        self.lookup_action("source-hide").set_enabled(self._show_source)
+        toc_available = not self._show_source
+        self.lookup_action("toc").set_enabled(toc_available)
+        self.lookup_action("toc-show").set_enabled(toc_available and not self._toc_visible)
+        self.lookup_action("toc-hide").set_enabled(toc_available and self._toc_visible)
+        self._toc_pane.set_visible(toc_available and self._toc_visible)
 
     # ------------------------------------------------------------------
     # Flavor and style
@@ -357,22 +414,35 @@ class ViewerWindow(Gtk.ApplicationWindow):
         self._history.visit(file.get_uri())
         self._show_file(file)
 
-    def reload(self) -> None:
-        """Re-read and re-render the current file, keeping the scroll position."""
+    def reload(self, *, proportional: bool = False) -> None:
+        """Re-read and re-render the current file, keeping the scroll position.
+
+        *proportional*: keep the same fraction of the page instead of the same pixel
+        offset (used when switching between rendered and source view).
+        """
         if self._file is None:
             return
         generation = self._next_generation()
 
         def on_scroll(webview: WebKit.WebView, result: Gio.AsyncResult) -> None:
             try:
-                scroll_y = webview.evaluate_javascript_finish(result).to_double()
+                scroll = ScrollPosition(webview.evaluate_javascript_finish(result).to_double(), proportional)
             except GLib.Error:
                 _log.debug("Could not read scroll position", exc_info=True)
-                scroll_y = None
+                scroll = None
             if generation == self._generation and self._file is not None:
-                self._read_file(self._file, generation, scroll_y, is_reload=True)
+                self._read_file(self._file, generation, scroll, is_reload=True)
 
-        self._webview.evaluate_javascript("window.scrollY", -1, SCRIPT_WORLD, None, None, on_scroll)
+        script = _SCROLL_FRACTION_JS if proportional else "window.scrollY"
+        self._webview.evaluate_javascript(script, -1, SCRIPT_WORLD, None, None, on_scroll)
+
+    def _set_source(self, source: bool) -> None:
+        """Switch between the rendered document and its Markdown source."""
+        if self._file is None or source == self._show_source:
+            return
+        self._show_source = source
+        self._update_actions()
+        self.reload(proportional=True)
 
     def _show_file(self, file: Gio.File) -> None:
         if self._file is None or not self._file.equal(file):
@@ -388,13 +458,13 @@ class ViewerWindow(Gtk.ApplicationWindow):
         self._generation += 1
         return self._generation
 
-    def _read_file(self, file: Gio.File, generation: int, scroll_y: float | None, *, is_reload: bool) -> None:
-        file.load_contents_async(None, self._on_contents_loaded, (generation, scroll_y, is_reload))
+    def _read_file(self, file: Gio.File, generation: int, scroll: ScrollPosition | None, *, is_reload: bool) -> None:
+        file.load_contents_async(None, self._on_contents_loaded, (generation, scroll, is_reload))
 
     def _on_contents_loaded(
-        self, file: Gio.File, result: Gio.AsyncResult, data: tuple[int, float | None, bool]
+        self, file: Gio.File, result: Gio.AsyncResult, data: tuple[int, ScrollPosition | None, bool]
     ) -> None:
-        generation, scroll_y, is_reload = data
+        generation, scroll, is_reload = data
         if generation != self._generation:
             return
         try:
@@ -411,12 +481,13 @@ class ViewerWindow(Gtk.ApplicationWindow):
         flavor_id, style = self._effective_flavor(), self._effective_style()
         settings = get_settings()
         allow_remote = settings.get_boolean("allow-remote-images") if settings else False
+        themes, source = highlight_themes(), self._show_source
 
         scheme = style.scheme if style is not None else "auto"
 
         def work() -> None:
-            rendered, error = _render_page(text, title, flavor_id, style, allow_remote)
-            GLib.idle_add(self._on_rendered, generation, file, rendered, error, scroll_y, scheme)
+            rendered, error = _render_page(text, title, flavor_id, style, allow_remote, themes, source=source)
+            GLib.idle_add(self._on_rendered, generation, file, rendered, error, scroll, scheme)
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -426,7 +497,7 @@ class ViewerWindow(Gtk.ApplicationWindow):
         file: Gio.File,
         rendered: Rendered | None,
         error: str | None,
-        scroll_y: float | None,
+        scroll: ScrollPosition | None,
         scheme: str,
     ) -> bool:
         if generation != self._generation:
@@ -438,7 +509,7 @@ class ViewerWindow(Gtk.ApplicationWindow):
         self._install_page_scripts(math=rendered.has_math, mermaid=rendered.has_mermaid)
         self._pending_enhance = scheme if (rendered.has_math or rendered.has_mermaid) else None
         self._populate_toc(rendered.headings)
-        self._restore_scroll = scroll_y
+        self._restore_scroll = scroll
         self._expected_load_uri = file.get_uri()
         # Base URI = the file itself, so relative images and links resolve next to it.
         self._webview.load_html(rendered.page, file.get_uri())
@@ -492,9 +563,7 @@ class ViewerWindow(Gtk.ApplicationWindow):
     def _after_page_ready(self) -> None:
         """Runs once the page is final (after math/diagrams changed its height)."""
         if self._restore_scroll is not None:
-            self._webview.evaluate_javascript(
-                f"window.scrollTo(0, {float(self._restore_scroll)})", -1, SCRIPT_WORLD, None, None, None
-            )
+            self._webview.evaluate_javascript(self._restore_scroll.restore_script(), -1, SCRIPT_WORLD, None, None, None)
             self._restore_scroll = None
         if self._search_bar.get_search_mode() and self._search_entry.get_text():
             self._on_search_changed(self._search_entry)
@@ -530,9 +599,8 @@ class ViewerWindow(Gtk.ApplicationWindow):
             self._webview.evaluate_javascript(script, -1, SCRIPT_WORLD, None, None, None)
 
     def _set_toc_visible(self, visible: bool, *, save: bool = True) -> None:
-        self._toc_pane.set_visible(visible)
-        self.lookup_action("toc-show").set_enabled(not visible)
-        self.lookup_action("toc-hide").set_enabled(visible)
+        self._toc_visible = visible
+        self._update_actions()
         settings = get_settings()
         if save and settings is not None:
             settings.set_boolean("show-toc", visible)
